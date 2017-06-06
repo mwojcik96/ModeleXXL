@@ -1,0 +1,3 @@
+/home/agentomek/CLionProjects/PRy/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/agentomek/CLionProjects/PRy/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/agentomek/CLionProjects/PRy/cmake-build-debug/CMakeFiles/PRy.dir

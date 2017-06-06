@@ -1,0 +1,1 @@
+/usr/bin/c++   -g   CMakeFiles/PRy.dir/main.cpp.o CMakeFiles/PRy.dir/ProcessState.cpp.o CMakeFiles/PRy.dir/LamportClock.cpp.o  -o PRy -rdynamic /home/agentomek/.openmpi/lib/libmpi.so -lpthread -Wl,-rpath,/home/agentomek/.openmpi/lib 
