@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <mpi.h>
-#include "LamportClock.h"
 
 
 /*
@@ -58,9 +57,6 @@ void *startFunc(void *ptr)
 
 int main(int argc,char **argv)
 {
-    LamportClock l(10);
-    printf("first: %d\n", l.getFirst());
-
     int provided=0;
     MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE, &provided);
     printf("THREAD SUPPORT: %d\n", provided);
