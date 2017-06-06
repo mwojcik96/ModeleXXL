@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -53,15 +54,17 @@ void *startFunc(void *ptr)
             MPI_Ssend( &data, 1, MPI_INT, rank+1, 1, MPI_COMM_WORLD);
         }
     }
+    return nullptr;
 }
 
 int main(int argc,char **argv)
 {
+    srand((unsigned int) time(NULL));
     int provided=0;
-    MPI_Init_thread(&argc, &argv,MPI_THREAD_MULTIPLE, &provided);
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     printf("THREAD SUPPORT: %d\n", provided);
     if (provided!=MPI_THREAD_MULTIPLE) {
-        fprintf(stderr, "Brak wystarczajšcego wsparcia dla wštków - wychodzę!\n");
+        fprintf(stderr, "Brak wystarczajacego wsparcia dla watkow - wychodze!\n");
         MPI_Finalize();
         exit(-1);
     }
@@ -75,7 +78,7 @@ int main(int argc,char **argv)
 
     int data=0;
 
-    sleep(rank+1);
+    sleep((unsigned int) (rank + 1));
 
     /*   if (rank==size-1)
        MPI_Ssend( &data, 1, MPI_INT, 0, 1, MPI_COMM_WORLD);
