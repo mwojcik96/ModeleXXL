@@ -11,11 +11,17 @@
 class Process {
 private:
     // It can be either ORGANIZER or PARTICIPANT
-    string Role;
+    string role;
     // It's object of the competition which we organize or which we will take part in
     Competition competition;
 
+    int rank;
+    int size;
+    static void *askIfCompetitionIsHeld(void *ptr);
+
 public:
+    static const int DO_YOU_CREATE_A_COMPETITION;
+    Process();
     void behaviour();
     static string generateRoll();
 };

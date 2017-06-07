@@ -13,7 +13,8 @@ class Competition {
     vector<int> priority;
 
     // Constructors
-    Competition() {};
+public:
+    Competition(){};
     Competition(int id);
     Competition(int id, vector<int> vector);
 
