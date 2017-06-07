@@ -59,7 +59,6 @@ void *startFunc(void *ptr)
 
 int main(int argc,char **argv)
 {
-    srand((unsigned int) time(NULL));
     int provided=0;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     printf("THREAD SUPPORT: %d\n", provided);

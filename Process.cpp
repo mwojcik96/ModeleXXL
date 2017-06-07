@@ -5,10 +5,12 @@
 #include <mpi.h>
 #include <zconf.h>
 #include "Process.h"
+#include "Agent.h"
 
 const int Process::DO_YOU_CREATE_A_COMPETITION = 1;
 
 void *Process::askIfCompetitionIsHeld(void *ptr) {
+    Agent agent;
     int size;
     int rank;
     int buf;
@@ -16,18 +18,31 @@ void *Process::askIfCompetitionIsHeld(void *ptr) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     printf("Sending messages to check whether any competitions is held.\n");
     for(int i = 0; i < size; i++) {
-        printf("Sending messages to %d process to check whether any competitions is held.\n", i);
         if(i != rank) {
+            printf("Sending messages to %d process to check whether any competitions is held. I am %d\n", i, rank);
             MPI_Send(&DO_YOU_CREATE_A_COMPETITION, 1, MPI_INT, i, 1, MPI_COMM_WORLD);
         }
     }
     MPI_Status status;
-    for(int i = 0; i < size; i++) {
-        if(i != rank) {
-            MPI_Recv(&buf, 1, MPI_INT, i, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            printf("%d received from %d, I am %d\n", buf, i, rank);
+    for(int i = 0; i < size-1; i++) {
+        MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        if(status.MPI_SOURCE != rank) {
+            agent.setGeneratingRole(false);
+            if(buf == DO_YOU_CREATE_A_COMPETITION) {
+                // send your role
+                agent.setGeneratingRole(true);
+                printf("%s jestem\n", agent.getRole().c_str());
+            }
+            printf("%d received from %d, I am %d\n", buf, status.MPI_SOURCE, rank);
         }
     }
+    if(agent.getGeneratingRole()) {
+        printf("losuj");
+        agent.setRole(agent.generateRoll());
+    } else {
+        agent.setRole(ORGANIZER);
+    }
+    printf("I will be %s\n", agent.getRole().c_str());
     return nullptr;
 }
 
@@ -38,16 +53,11 @@ void Process::behaviour() {
     pthread_join(threadA,NULL);
 }
 
-string Process::generateRoll() {
-    int randomNumber = rand()%100+1;
-    if (randomNumber < 15) {
-        return ORGANIZER;
-    }
-    return PARTICIPANT;
-}
+
 
 Process::Process() {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     printf("rank: %d, size: %d\n", rank, size);
+    srand((unsigned int) time(NULL) + rank*20);
 }
