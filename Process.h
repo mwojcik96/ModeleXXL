@@ -6,6 +6,16 @@
 #ifndef PRY_PROCESS_H
 #define PRY_PROCESS_H
 
+struct structToSend {
+    int rank;
+    int size;
+    vector<int> clock;
+    vector<int> competitionClock;
+    int city;
+    int room;
+    int state;
+};
+
 class Process {
 private:
 
