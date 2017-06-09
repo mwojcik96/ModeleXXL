@@ -4,7 +4,7 @@
 
 #include "Agent.h"
 
-string Agent::generateRoll() {
+int Agent::generateRoll() {
     int randomNumber = rand()%100+1;
     printf("%d\n", randomNumber);
     if (randomNumber < 20) {
@@ -13,11 +13,11 @@ string Agent::generateRoll() {
     return PARTICIPANT;
 }
 
-void Agent::setRole(string role) {
+void Agent::setRole(int role) {
     this->role = role;
 }
 
-string Agent::getRole() {
+int Agent::getRole() {
     return this->role;
 }
 

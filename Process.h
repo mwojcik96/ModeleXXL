@@ -9,7 +9,6 @@
 
 class Process {
 private:
-
     int rank;
     int size;
     static void *askIfCompetitionIsHeld(void *ptr);

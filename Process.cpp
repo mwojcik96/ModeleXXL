@@ -31,7 +31,7 @@ void *Process::askIfCompetitionIsHeld(void *ptr) {
             if(buf == DO_YOU_CREATE_A_COMPETITION) {
                 // send your role
                 agent.setGeneratingRole(true);
-                printf("%s jestem\n", agent.getRole().c_str());
+                printf("%d jestem\n", agent.getRole());
             }
             printf("%d received from %d, I am %d\n", buf, status.MPI_SOURCE, rank);
         }
@@ -42,11 +42,11 @@ void *Process::askIfCompetitionIsHeld(void *ptr) {
     } else {
         agent.setRole(ORGANIZER);
     }
-    printf("I will be %s\n", agent.getRole().c_str());
+    printf("I will be %d\n", agent.getRole());
     return nullptr;
 }
 
-void Process::behaviour() {
+void Process::behaviour() { // sendy
     pthread_t threadA;
     pthread_create(&threadA, NULL, Process::askIfCompetitionIsHeld, NULL);
     sleep((unsigned int) (rank + 1));
