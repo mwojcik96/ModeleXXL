@@ -19,9 +19,9 @@ struct structToSend {
 class Process {
 private:
 
-    structToSend str;
+    int rank;
+    int size;
     static void *askIfCompetitionIsHeld(void *ptr);
-
 
 public:
     static const int DO_YOU_CREATE_A_COMPETITION;
