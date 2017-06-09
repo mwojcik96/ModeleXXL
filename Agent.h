@@ -4,15 +4,15 @@
 
 #ifndef PRY_AGENT_H
 #define PRY_AGENT_H
-#define ORGANIZER "Organizer"
-#define PARTICIPANT "Participant"
+#define ORGANIZER 0
+#define PARTICIPANT 1
 
 #include <string>
 #include "Competition.h"
 
 class Agent {
     // It can be either ORGANIZER or PARTICIPANT
-    string role;
+    int role;
     // It's object of the competition which we organize or which we will take part in
     Competition competition;
     // When this field is true, agent will randomly choose a role
@@ -20,11 +20,11 @@ class Agent {
 
 public:
 
-    void setRole(string role);
+    void setRole(int role);
 
-    string getRole();
+    int getRole();
 
-    static string generateRoll();
+    static int generateRoll();
 
     void setGeneratingRole(bool i);
 
