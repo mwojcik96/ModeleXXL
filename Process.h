@@ -21,7 +21,6 @@ struct structToSend {
 
 class Process {
 private:
-
     structToSend str;
     static void *askIfCompetitionIsHeld(void *ptr);
     static void *organizationResponder(void *ptr);
