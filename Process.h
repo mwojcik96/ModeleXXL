@@ -6,13 +6,22 @@
 #ifndef PRY_PROCESS_H
 #define PRY_PROCESS_H
 
+struct structToSend {
+    int rank;
+    int size;
+    vector<int> clock;
+    vector<int> competitionClock;
+    int city;
+    int room;
+    int state;
+};
 
 class Process {
 private:
 
-    int rank;
-    int size;
+    structToSend str;
     static void *askIfCompetitionIsHeld(void *ptr);
+
 
 public:
     static const int DO_YOU_CREATE_A_COMPETITION;
