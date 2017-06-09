@@ -9,19 +9,23 @@
 struct structToSend {
     int rank;
     int size;
+    int city;
+    int hall;
+    int state;
+    int hotelSlots;
     vector<int> clock;
     vector<int> competitionClock;
-    int city;
-    int room;
-    int state;
+    vector<int> potentialUsers;
+    vector<int> signedUsers;
 };
 
 class Process {
 private:
 
-    int rank;
-    int size;
+    structToSend str;
     static void *askIfCompetitionIsHeld(void *ptr);
+    static void *organizationResponder(void *ptr);
+    static bool freeSlotInVectors(vector<int> potentialUsers, vector<int> signedUsers, int hotelSlots);
 
 public:
     static const int DO_YOU_CREATE_A_COMPETITION;
