@@ -62,6 +62,7 @@ int main(int argc,char **argv)
     int provided=0;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     printf("THREAD SUPPORT: %d\n", provided);
+    printf("%s, %s", argv[1], argv[2]);
     if (provided!=MPI_THREAD_MULTIPLE) {
         fprintf(stderr, "Brak wystarczajacego wsparcia dla watkow - wychodze!\n");
         MPI_Finalize();

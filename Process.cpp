@@ -4,15 +4,16 @@
 
 #include <mpi.h>
 #include <unistd.h>
+#include <iostream>
 #include "Process.h"
 #include "Agent.h"
-
-#define PRESTATE                    0       //Przed zadaniem pytań
-#define ASK_ORGANIZATION            1       //Po zadaniu pytań(100) - czeka na odpowiedzi(200) i po nich decyduje kim jest (wysyła (300))
+using namespace std;
+#define PRESTATE                    1000       //Przed zadaniem pytań
+#define ASK_ORGANIZATION            1001       //Po zadaniu pytań(100) - czeka na odpowiedzi(200) i po nich decyduje kim jest (wysyła (300))
 
 #define DECIDED_TO_PARTICIPATE      10      //Uczestnik - czeka na (800) przed spytaniem o hotel(400)
 #define ASK_HOTEL                   11      //Uczestnik - czekający na hotel i po zgodzie((500) * n-H) wysyłający potwierdzenie do organizatora(900)
-#define HOTEL_BOOKED                12      //Uczestnik - czekający na info o zakończeniu konkrsu(1000)
+#define WAITING_FOR_END             12      //Uczestnik - czekający na info o zakończeniu konkrsu(1000)
 #define AFTER_COMPETITION_IN_HOTEL  13      //Uczestnik - po konkursie w czasie gdy jeszcze okupuje hotel - potem rozsyła zgody czekającym na hotel(500)
 
 #define DECIDED_TO_ORGANIZE         20      //Organizator - przed spytaniem o salę(600) (może niepotrzebny?)
@@ -35,7 +36,8 @@
 #define COMPETITION_END             1000    //"Koniec konkursu"
 
 const int Process::DO_YOU_CREATE_A_COMPETITION = 1;
-
+// HERE'S THE DEFINITION OF MUTEXES
+pthread_mutex_t mutex1[10];
 void *Process::askIfCompetitionIsHeld(void *ptr) {
     structToSend *sharedData = (structToSend *) ptr;
     Agent agent;
@@ -70,43 +72,67 @@ void *Process::askIfCompetitionIsHeld(void *ptr) {
     printf("I will be %d\n", agent.getRole());
     return nullptr;
 }
-
+void Process::sendMessagesAskingIfCompetitionIsHeld(structToSend str) {
+    for(int i = 0; i < str.size; i++) {
+        if(i != str.rank) {
+            printf("Sending messages to %d process to check whether any competitions is held. I am %d\n", i, str.rank);
+            MPI_Send(&DO_YOU_CREATE_A_COMPETITION, 1, MPI_INT, i, 1, MPI_COMM_WORLD);
+        }
+    }
+}
 void Process::behaviour() { // sendy
+    printf("Sending messages to check whether any competitions is held.\n");
+    printf("FROM_STRUCT: size=%d, rank=%d, city=%d\n", str.size, str.rank, str.city);
+    sendMessagesAskingIfCompetitionIsHeld(str);
     pthread_t threadA;
-    //pthread_t threadB;
-    pthread_create(&threadA, NULL, Process::askIfCompetitionIsHeld, &str);
-    //pthread_create(&threadB, NULL, Process::organizationResponder, &str);
+    pthread_t threadB;
+    pthread_create(&threadA, NULL, Process::organizationResponder, &str);
+    pthread_create(&threadB, NULL, Process::organizationResponder, &str);
     sleep((unsigned int) (str.rank + 1));
     pthread_join(threadA,NULL);
-    //pthread_join(threadB,NULL);
+    pthread_join(threadB,NULL);
 }
 
 void* Process::organizationResponder(void *ptr) {
+    printf("creating xD \n");
     structToSend *sharedData = (structToSend *) ptr;
     int buf = 1;
     int decision;
     MPI_Status status;
+    // DOESN'T WORK HERE
+//    pthread_mutex_lock(&mutex1[0]);
+//    cout<<&mutex1[0]<<endl;
+//    sleep(300);
+//    pthread_mutex_unlock(&mutex1[0]);
+    cout<<"XDDDDD"<<endl;
     while(true){
+        // to disable CLion's verification of endless loop
+        if(sharedData->state == 2000000)
+            break;
         decision = -1; //default_value = "NO"
         MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, COMPETITION_QUESTION, MPI_COMM_WORLD, &status);
-        //here mutex_state(lock)
-        //here mutex_potentialUsers(lock)
-        //here mutex_signedUsers(lock)
+        // MUTEXES
+        pthread_mutex_lock(&mutex1[STATE_MUTEX]);
+        pthread_mutex_lock(&mutex1[POTENTIAL_USERS_MUTEX]);
+        pthread_mutex_lock(&mutex1[SIGNED_USERS_MUTEX]);
         //NOTE: city and hotelSlots mutex not needed; main thread can't change it in this state
-        if(sharedData->state == ASK_INVITES && freeSlotInVectors(sharedData->potentialUsers, sharedData->signedUsers, sharedData->hotelSlots)) {
+        if(sharedData->state == ASK_INVITES && freeSlotInVectors(sharedData)) {
             decision = sharedData->city;
-            //TODO: mark status.MPI_SOURCE process in potentialUsers[]
+            sharedData->potentialUsers.push_back(status.MPI_SOURCE);
         }
         MPI_Send(&decision, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
+        pthread_mutex_unlock(&mutex1[SIGNED_USERS_MUTEX]);
+        pthread_mutex_unlock(&mutex1[POTENTIAL_USERS_MUTEX]);
+        pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
         //here mutex_signedUsers(unlock)
         //here mutex_potentialUsers(unlock)
         //here mutex_state(unlock)
     }
+    return nullptr;
 }
 
-bool Process::freeSlotInVectors(vector<int> potentialUsers, vector<int> signedUsers, int hotelSlots) {
-    //TODO:check if in vectors are less process than in hotelSlots
-    return true;
+bool Process::freeSlotInVectors(structToSend* str) {
+    return(str->potentialUsers.size() + str->signedUsers.size() >= str->hotelSlots);
 }
 
 Process::Process() {
@@ -116,5 +142,6 @@ Process::Process() {
     str.city = -1;
     str.hall = -1;
     str.state = 0;
+    str.hotelSlots = 30;
     srand((unsigned int) time(NULL) + str.rank*20);
 }
