@@ -53,6 +53,7 @@ private:
     static void *canIHavePlaceInHotel(void *ptr);
     static bool freeSlotInVectors(structToSend* str);
     void sendMessagesAskingIfCompetitionIsHeld(structToSend str);
+    void sendMessagesAskingHotel(structToSend str);
 
 public:
     static const int DO_YOU_CREATE_A_COMPETITION;
