@@ -42,6 +42,46 @@ const int Process::DO_YOU_CREATE_A_COMPETITION = 1;
 // HERE'S THE DEFINITION OF MUTEXES
 pthread_mutex_t mutex1[10];
 
+void incrementAfterMPISend(structToSend ourStr) {
+    ourStr.clock[ourStr.rank]++;
+}
+// returns -1 when second argument clock is greater than first, 0 when they are equal, 1 when first is greater
+// and 100 when they are incomparable
+int compareClocks(vector<int> ourClock, vector<int> receivedClock) {
+    int output = 0;
+    for(int i = 0; i < ourClock.size(); i++) {
+        if(ourClock[i] < receivedClock[i]) {
+            if (!output)
+                output = -1;
+            else if (output == 1) {
+                output = 100;
+                break;
+            } else
+                continue;
+        }
+        else if (ourClock[i] == receivedClock[i]){
+            continue;
+        } else {
+            if(!output)
+                output = 1;
+            else if (output == 1) {
+                output = 100;
+                break;
+            }
+        }
+    }
+    return output;
+}
+
+void incrementAfterMPIRecv(structToSend ourStr, vector<int> receivedClock) {
+    incrementAfterMPISend(ourStr);
+    for(int i = 0; i < receivedClock.size(); i++) {
+        ourStr.clock[i] = ourStr.clock[i] >= receivedClock[i] ? ourStr.clock[i] : receivedClock[i];
+    }
+}
+
+
+
 void *Process::askIfCompetitionIsHeld(void *ptr) {
     structToSend *sharedData = (structToSend *) ptr;
     Agent agent;

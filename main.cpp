@@ -59,6 +59,7 @@ void *startFunc(void *ptr)
 
 int main(int argc,char **argv)
 {
+//    system("pkill -f PRy");
     int provided=0;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     printf("THREAD SUPPORT: %d\n", provided);
