@@ -40,7 +40,7 @@ using namespace std;
 
 const int Process::DO_YOU_CREATE_A_COMPETITION = 1;
 // HERE'S THE DEFINITION OF MUTEXES
-pthread_mutex_t mutex1[10];
+pthread_mutex_t mutex1[13];
 
 void incrementAfterMPISend(structToSend ourStr) {
     ourStr.clock[ourStr.rank]++;
@@ -201,6 +201,13 @@ Process::Process() {
     srand((unsigned int) time(NULL) + str.rank*20);
 }
 
+Process::Process(long i, long i1, long i2) {
+    Process();
+    str.numberOfCities = i;
+    str.numberOfHalls = i1;
+    str.numberOfRoomsInHotel = i2;
+}
+
 int generateRole() {
     int randomNumber = rand()%100+1;
     printf("%d\n", randomNumber);
@@ -261,4 +268,41 @@ void *Process::someoneOrganisesResponder(void *ptr) {
     }
     return nullptr;
 }
+
+void *Process::canIHavePlaceInHotel(void *ptr) {
+    structToSend *sharedData = (structToSend *) ptr;
+    int buf;
+    MPI_Status status;
+    while(true) {
+        // to disable CLion's verification of endless loop
+        if(sharedData->state == 2000000)
+            break;
+        MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, HOTEL_QUESTION, MPI_COMM_WORLD, &status);
+
+        pthread_mutex_lock(&mutex1[STATE_MUTEX]);
+        // If we are in state that we will ask for the hotel in some other thread
+        if(sharedData->state == ASK_HOTEL) {
+            // We agree if someone wants hotel in not our city
+            if(buf != sharedData->cityOfCompetitionWeTakePartIn) {
+                buf = 1;
+                MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
+            //  but when it's in our city, we will just add them to list of processes, which we will reply
+            // after we give back place in hotel
+            } else {
+                sharedData->listOfProcessesWantingPlaceInOurHotel.push_back(status.MPI_SOURCE);
+                pthread_mutex_lock(&mutex1[LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX]);
+                if(sharedData->listOfProcessesThatAgreedOnHotel.size() + sharedData->listOfProcessesWantingPlaceInOurHotel.size() >=
+                        sharedData->size - sharedData->numberOfRoomsInHotel);
+            }
+        // if we are in any other state, we agree to take a place in hotel
+        } else {
+            buf = 1;
+            MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
+        }
+        pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
+    }
+    return nullptr;
+}
+
+
 

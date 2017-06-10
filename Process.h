@@ -20,9 +20,12 @@
 #define SIGNED_USERS_MUTEX 9
 #define CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX 10
 #define ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX 11
-
+#define LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX 12
 
 struct structToSend {
+    long numberOfCities;
+    long numberOfHalls;
+    long numberOfRoomsInHotel;
     int rank;
     int size;
     int city;
@@ -35,6 +38,8 @@ struct structToSend {
     vector<int> signedUsers;
     int cityOfCompetitionWeTakePartIn;
     int idOfCompetitionWeTakePartIn;
+    vector<int> listOfProcessesWantingPlaceInOurHotel;
+    vector<int> listOfProcessesThatAgreedOnHotel;
 
 };
 
@@ -45,6 +50,7 @@ private:
     static void *askIfCompetitionIsHeld(void *ptr);
     static void *doYouOrganizeResponder(void *ptr);
     static void *someoneOrganisesResponder(void *ptr);
+    static void *canIHavePlaceInHotel(void *ptr);
     static bool freeSlotInVectors(structToSend* str);
     void sendMessagesAskingIfCompetitionIsHeld(structToSend str);
 
@@ -54,6 +60,8 @@ public:
     void behaviour();
 
     void receiveRepliesToQuestionAboutHavingACompetition();
+
+    Process(long i, long i1, long i2);
 };
 
 
