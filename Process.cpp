@@ -11,13 +11,13 @@
 
 using namespace std;
 
-#define PRESTATE                    1000       //Przed zadaniem pytań
-#define ASK_ORGANIZATION            1001       //Po zadaniu pytań(100) - czeka na odpowiedzi(200) i po nich decyduje kim jest (wysyła (300))
+#define PRESTATE                    1000    //Przed zadaniem pytań
+#define ASK_ORGANIZATION            1001    //Po zadaniu pytań(100) - czeka na odpowiedzi(200) i po nich decyduje kim jest (wysyła (300))
 
-#define DECIDED_TO_PARTICIPATE      10      //Uczestnik - czeka na (800) przed spytaniem o hotel(400)
-#define ASK_HOTEL                   11      //Uczestnik - czekający na hotel i po zgodzie((500) * n-H) wysyłający potwierdzenie do organizatora(900)
-#define WAITING_FOR_END             12      //Uczestnik - czekający na info o zakończeniu konkrsu(1000)
-#define AFTER_COMPETITION_IN_HOTEL  13      //Uczestnik - po konkursie w czasie gdy jeszcze okupuje hotel - potem rozsyła zgody czekającym na hotel(500)
+#define DECIDED_TO_PARTICIPATE      14      //Uczestnik - czeka na (800) przed spytaniem o hotel(400)
+#define ASK_HOTEL                   15      //Uczestnik - czekający na hotel i po zgodzie((500) * n-H) wysyłający potwierdzenie do organizatora(900)
+#define WAITING_FOR_END             16      //Uczestnik - czekający na info o zakończeniu konkrsu(1000)
+#define AFTER_COMPETITION_IN_HOTEL  17      //Uczestnik - po konkursie w czasie gdy jeszcze okupuje hotel - potem rozsyła zgody czekającym na hotel(500)
 
 #define DECIDED_TO_ORGANIZE         20      //Organizator - przed spytaniem o salę(600) (może niepotrzebny?)
 #define ASK_HALL                    21      //Organizator - czekający na salę i po zgodzie((700) * n-1) wysyła H zaproszeń(type 200)
@@ -26,7 +26,7 @@ using namespace std;
 
 #define COMPETITION_QUESTION        100     //"Czy organizujesz konkurs?"
 #define COMPETITION_ANSWER          200     //"Organizuję konkurs w M"
-#define COMPETITION_CONFIRM         300     //"Będę/Nie będę"
+#define COMPETITION_CONFIRM         300     //"Będę"/"Nie będę"
 
 #define HOTEL_QUESTION              400     //"Czy mogę wziąć hotel w M?"
 #define HOTEL_ANSWER                500     //"Możesz wziąć hotel w M"
@@ -117,27 +117,31 @@ void *Process::askIfCompetitionIsHeld(void *ptr) {
     return nullptr;
 }
 void Process::sendMessagesAskingIfCompetitionIsHeld(structToSend str) {
+    int buf = COMPETITION_QUESTION;
     for(int i = 0; i < str.size; i++) {
         if(i != str.rank) {
             printf("Sending messages to %d process to check whether any competitions is held. I am %d\n", i, str.rank);
-            MPI_Send(&DO_YOU_CREATE_A_COMPETITION, 1, MPI_INT, i, 1, MPI_COMM_WORLD);
+            MPI_Send(&buf, 1, MPI_INT, i, 1, MPI_COMM_WORLD);
         }
     }
 }
+
+
 void Process::behaviour() { // sendy
+
     printf("Sending messages to check whether any competitions is held.\n");
     printf("FROM_STRUCT: size=%d, rank=%d, city=%d\n", str.size, str.rank, str.city);
     sendMessagesAskingIfCompetitionIsHeld(str);
+    // Create a thread, which will receive questions "Do you organize a competition?"
     pthread_t threadA;
     pthread_t threadB;
-    pthread_create(&threadA, NULL, Process::organizationResponder, &str);
-    pthread_create(&threadB, NULL, Process::organizationResponder, &str);
+    pthread_create(&threadA, NULL, Process::doYouOrganizeResponder, &str);
+    pthread_create(&threadB, NULL, Process::someoneOrganisesResponder, &str);
     sleep((unsigned int) (str.rank + 1));
     pthread_join(threadA,NULL);
-    pthread_join(threadB,NULL);
 }
 
-void* Process::organizationResponder(void *ptr) {
+void* Process::doYouOrganizeResponder(void *ptr) {
     printf("creating xD \n");
     structToSend *sharedData = (structToSend *) ptr;
     int buf = 1;
@@ -149,7 +153,7 @@ void* Process::organizationResponder(void *ptr) {
     sleep(3);
     printf("LEFT: tid = %d, mutex_addr=%d, process = %d\n", syscall(SYS_gettid), &mutex1[0], sharedData->rank);
     pthread_mutex_unlock(&mutex1[0]);
-    /*
+
     while(true){
         // to disable CLion's verification of endless loop
         if(sharedData->state == 2000000)
@@ -164,15 +168,19 @@ void* Process::organizationResponder(void *ptr) {
         if(sharedData->state == ASK_INVITES && freeSlotInVectors(sharedData)) {
             decision = sharedData->city;
             sharedData->potentialUsers.push_back(status.MPI_SOURCE);
+            // If we have a free slot then answer with city ID in &decision and with tag COMPETITION_ANSWER
+        } else {
+            // If any condition is not satisfied, send -1 as city ID
+            decision = -1;
         }
-        MPI_Send(&decision, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
+        MPI_Send(&decision, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_ANSWER, MPI_COMM_WORLD);
         pthread_mutex_unlock(&mutex1[SIGNED_USERS_MUTEX]);
         pthread_mutex_unlock(&mutex1[POTENTIAL_USERS_MUTEX]);
         pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
         //here mutex_signedUsers(unlock)
         //here mutex_potentialUsers(unlock)
         //here mutex_state(unlock)
-    } */
+    }
     return nullptr;
 }
 
@@ -188,5 +196,69 @@ Process::Process() {
     str.hall = -1;
     str.state = 0;
     str.hotelSlots = 30;
+    str.cityOfCompetitionWeTakePartIn = -1;
+    str.idOfCompetitionWeTakePartIn = -1;
     srand((unsigned int) time(NULL) + str.rank*20);
 }
+
+int generateRole() {
+    int randomNumber = rand()%100+1;
+    printf("%d\n", randomNumber);
+    if (randomNumber < 20) {
+        return DECIDED_TO_ORGANIZE;
+    }
+    return DECIDED_TO_PARTICIPATE;
+}
+
+void *Process::someoneOrganisesResponder(void *ptr) {
+    structToSend *sharedData = (structToSend *) ptr;
+    int howManyRespondedThatDoNotOrganise = 0;
+    int howManyRespondedAnything = 0;
+    while(true) {
+        // to disable CLion's verification of endless loop
+        if(sharedData->state == 2000000)
+            break;
+        int buf;
+        MPI_Status status;
+        // If I waited for 200, so I wait for responses about organising a competition
+        MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, COMPETITION_ANSWER, MPI_COMM_WORLD, &status);
+        if(sharedData->state == ASK_ORGANIZATION) {
+                howManyRespondedAnything++;
+                if(buf != -1) {
+                    int newState = generateRole();
+                    if(newState == DECIDED_TO_PARTICIPATE) {
+                        buf = -1;
+                        MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
+                    } else {
+                        pthread_mutex_lock(&mutex1[CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+                        pthread_mutex_lock(&mutex1[ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+                        // If we didn't choose other competition earlier
+                        if(sharedData->idOfCompetitionWeTakePartIn != -1) {
+                            sharedData->idOfCompetitionWeTakePartIn = status.MPI_SOURCE;
+                            sharedData->cityOfCompetitionWeTakePartIn = buf;
+                        } // If we did, push back ID of process to response "NO" to
+                        pthread_mutex_unlock(&mutex1[ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+                        pthread_mutex_unlock(&mutex1[CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+                        // Participate in this competition
+                        buf = 1;
+                        MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
+                    }
+                } else {
+                    howManyRespondedThatDoNotOrganise++;
+                }
+                if(howManyRespondedThatDoNotOrganise == sharedData->size-1) {
+                    sharedData->state = DECIDED_TO_ORGANIZE;
+                }
+        } else {
+            buf = -1;
+            MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
+        }
+//        pthread_mutex_lock(&mutex1[STATE_MUTEX]);
+
+            // If someone responded that he organises
+
+
+    }
+    return nullptr;
+}
+

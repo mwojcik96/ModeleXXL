@@ -18,6 +18,8 @@
 #define COMPETITION_CLOCK_MUTEX 7
 #define POTENTIAL_USERS_MUTEX 8
 #define SIGNED_USERS_MUTEX 9
+#define CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX 10
+#define ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX 11
 
 
 struct structToSend {
@@ -31,6 +33,8 @@ struct structToSend {
     vector<int> competitionClock;
     vector<int> potentialUsers;
     vector<int> signedUsers;
+    int cityOfCompetitionWeTakePartIn;
+    int idOfCompetitionWeTakePartIn;
 
 };
 
@@ -39,7 +43,8 @@ class Process {
 private:
     structToSend str;
     static void *askIfCompetitionIsHeld(void *ptr);
-    static void *organizationResponder(void *ptr);
+    static void *doYouOrganizeResponder(void *ptr);
+    static void *someoneOrganisesResponder(void *ptr);
     static bool freeSlotInVectors(structToSend* str);
     void sendMessagesAskingIfCompetitionIsHeld(structToSend str);
 
@@ -47,6 +52,8 @@ public:
     static const int DO_YOU_CREATE_A_COMPETITION;
     Process();
     void behaviour();
+
+    void receiveRepliesToQuestionAboutHavingACompetition();
 };
 
 
