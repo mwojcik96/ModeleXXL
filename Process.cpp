@@ -7,7 +7,10 @@
 #include <iostream>
 #include "Process.h"
 #include "Agent.h"
+#include <syscall.h>
+
 using namespace std;
+
 #define PRESTATE                    1000       //Przed zadaniem pytań
 #define ASK_ORGANIZATION            1001       //Po zadaniu pytań(100) - czeka na odpowiedzi(200) i po nich decyduje kim jest (wysyła (300))
 
@@ -38,6 +41,7 @@ using namespace std;
 const int Process::DO_YOU_CREATE_A_COMPETITION = 1;
 // HERE'S THE DEFINITION OF MUTEXES
 pthread_mutex_t mutex1[10];
+
 void *Process::askIfCompetitionIsHeld(void *ptr) {
     structToSend *sharedData = (structToSend *) ptr;
     Agent agent;
@@ -100,11 +104,12 @@ void* Process::organizationResponder(void *ptr) {
     int decision;
     MPI_Status status;
     // DOESN'T WORK HERE
-//    pthread_mutex_lock(&mutex1[0]);
-//    cout<<&mutex1[0]<<endl;
-//    sleep(300);
-//    pthread_mutex_unlock(&mutex1[0]);
-    cout<<"XDDDDD"<<endl;
+    pthread_mutex_lock(&mutex1[0]);
+    printf("INSIDE: tid = %d, mutex_addr=%d, process = %d\n", syscall(SYS_gettid), &mutex1[0], sharedData->rank);
+    sleep(3);
+    printf("LEFT: tid = %d, mutex_addr=%d, process = %d\n", syscall(SYS_gettid), &mutex1[0], sharedData->rank);
+    pthread_mutex_unlock(&mutex1[0]);
+    /*
     while(true){
         // to disable CLion's verification of endless loop
         if(sharedData->state == 2000000)
@@ -127,7 +132,7 @@ void* Process::organizationResponder(void *ptr) {
         //here mutex_signedUsers(unlock)
         //here mutex_potentialUsers(unlock)
         //here mutex_state(unlock)
-    }
+    } */
     return nullptr;
 }
 
