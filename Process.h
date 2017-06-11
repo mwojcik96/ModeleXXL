@@ -21,7 +21,7 @@
 #define CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX 10
 #define ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX 11
 #define LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX 12
-#define LIST_OF_PROCESSES_THAT_AGREED_ON_HOTEL_MUTEX 13
+#define LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HALL_MUTEX 13
 #define HOTEL_AGREED_MUTEX 14
 #define HALL_AGREED_MUTEX 15
 
@@ -44,7 +44,7 @@ struct structToSend {
     int cityOfCompetitionWeTakePartIn;
     int idOfCompetitionWeTakePartIn;
     vector<int> listOfProcessesWantingPlaceInOurHotel;
-    //vector<int> listOfProcessesThatAgreedOnHotel;
+    vector<int> listOfProcessesWantingPlaceInOurHall;
     int hotelAgreed;
     int hallAgreed;
 };
@@ -60,6 +60,7 @@ private:
     static bool freeSlotInVectors(structToSend* str);
     void sendMessagesAskingIfCompetitionIsHeld(structToSend str);
     void sendMessagesAskingHotel(structToSend str);
+    void sendMessagesAskingHall(structToSend str);
 
 public:
     static const int DO_YOU_CREATE_A_COMPETITION;
