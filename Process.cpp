@@ -279,7 +279,7 @@ void Process::behaviour() { // sendy
                     processesToBeInvited = randomize(str);
                     for (int i = 0; i < str.numberOfRoomsInHotel; i++) {
                         tabToBeSent[1] = (int)str.city;
-                        MPI_Send(&buf, 1, MPI_INT, processesToBeInvited[i], COMPETITION_ANSWER, MPI_COMM_WORLD);
+                        MPI_Send(tabToBeSent, 2, MPI_INT, processesToBeInvited[i], COMPETITION_ANSWER, MPI_COMM_WORLD);
                         str.potentialUsers.push_back(processesToBeInvited[i]);
                     }
                     //left critical section and left loop to wait for all potential responsed
@@ -404,7 +404,7 @@ void *Process::doYouOrganizeResponder(void *ptr) {
         sharedData->clock++;
         decision[0] = sharedData->clock;
         //send msg
-        MPI_Send(&decision, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_ANSWER, MPI_COMM_WORLD);
+        MPI_Send(decision, 2, MPI_INT, status.MPI_SOURCE, COMPETITION_ANSWER, MPI_COMM_WORLD);
         pthread_mutex_unlock(&strMutex);
     }
     return nullptr;
