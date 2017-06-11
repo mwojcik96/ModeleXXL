@@ -8,8 +8,6 @@
 #ifndef PRY_PROCESS_H
 #define PRY_PROCESS_H
 
-#define RANK_MUTEX 0
-#define SIZE_MUTEX 1
 #define CITY_MUTEX 2
 #define HALL_MUTEX 3
 #define STATE_MUTEX 4
@@ -31,8 +29,8 @@ struct structToSend {
     long numberOfRoomsInHotel;
     int rank;
     int size;
-    int city;
-    int hall;
+    long city;
+    long hall;
     int state;
     int hotelSlots;
     //vector<int> clock;
@@ -53,23 +51,22 @@ class Process {
 
 private:
     structToSend str;
-    static void *askIfCompetitionIsHeld(void *ptr);
     static void *doYouOrganizeResponder(void *ptr);
     static void *someoneOrganisesResponder(void *ptr);
-    static void *canIHavePlaceInHotel(void *ptr);
+    static void *canIHavePlaceInHotelResponder(void *ptr);
+    static void *canITakeTheHallResponder(void *ptr);
     static bool freeSlotInVectors(structToSend* str);
     void sendMessagesAskingIfCompetitionIsHeld(structToSend str);
     void sendMessagesAskingHotel(structToSend str);
     void sendMessagesAskingHall(structToSend str);
 
 public:
-    static const int DO_YOU_CREATE_A_COMPETITION;
     Process();
     void behaviour();
 
-    void receiveRepliesToQuestionAboutHavingACompetition();
 
     Process(long i, long i1, long i2);
+
 };
 
 
