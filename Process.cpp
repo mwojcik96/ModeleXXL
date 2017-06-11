@@ -8,6 +8,7 @@
 #include "Process.h"
 #include "Agent.h"
 #include <syscall.h>
+#include <algorithm>
 
 using namespace std;
 
@@ -45,12 +46,13 @@ pthread_mutex_t mutex1[13];
 void incrementAfterMPISend(structToSend ourStr) {
     ourStr.clock[ourStr.rank]++;
 }
+
 // returns -1 when second argument clock is greater than first, 0 when they are equal, 1 when first is greater
 // and 100 when they are incomparable
 int compareClocks(vector<int> ourClock, vector<int> receivedClock) {
     int output = 0;
-    for(int i = 0; i < ourClock.size(); i++) {
-        if(ourClock[i] < receivedClock[i]) {
+    for (int i = 0; i < ourClock.size(); i++) {
+        if (ourClock[i] < receivedClock[i]) {
             if (!output)
                 output = -1;
             else if (output == 1) {
@@ -58,11 +60,10 @@ int compareClocks(vector<int> ourClock, vector<int> receivedClock) {
                 break;
             } else
                 continue;
-        }
-        else if (ourClock[i] == receivedClock[i]){
+        } else if (ourClock[i] == receivedClock[i]) {
             continue;
         } else {
-            if(!output)
+            if (!output)
                 output = 1;
             else if (output == 1) {
                 output = 100;
@@ -75,7 +76,7 @@ int compareClocks(vector<int> ourClock, vector<int> receivedClock) {
 
 void incrementAfterMPIRecv(structToSend ourStr, vector<int> receivedClock) {
     incrementAfterMPISend(ourStr);
-    for(int i = 0; i < receivedClock.size(); i++) {
+    for (int i = 0; i < receivedClock.size(); i++) {
         ourStr.clock[i] = ourStr.clock[i] >= receivedClock[i] ? ourStr.clock[i] : receivedClock[i];
     }
 }
@@ -119,8 +120,8 @@ void *Process::askIfCompetitionIsHeld(void *ptr) {
 
 void Process::sendMessagesAskingIfCompetitionIsHeld(structToSend str) {
     int buf = COMPETITION_QUESTION;
-    for(int i = 0; i < str.size; i++) {
-        if(i != str.rank) {
+    for (int i = 0; i < str.size; i++) {
+        if (i != str.rank) {
             printf("Sending messages to %d process to check whether any competitions is held. I am %d\n", i, str.rank);
             MPI_Send(&buf, 1, MPI_INT, i, COMPETITION_QUESTION, MPI_COMM_WORLD);
         }
@@ -129,8 +130,8 @@ void Process::sendMessagesAskingIfCompetitionIsHeld(structToSend str) {
 
 void Process::sendMessagesAskingHotel(structToSend str) {
     int buf = HOTEL_QUESTION;
-    for(int i = 0; i < str.size; i++) {
-        if(i != str.rank) {
+    for (int i = 0; i < str.size; i++) {
+        if (i != str.rank) {
             printf("Sending messages to %d process to get hotel. I am %d\n", i, str.rank);
             MPI_Send(&buf, 1, MPI_INT, i, HOTEL_QUESTION, MPI_COMM_WORLD);
         }
@@ -152,8 +153,8 @@ void Process::behaviour() { // sendy
     MPI_Status status;
 
     /* START ALGORITHM */
-    while(true){
-        if(str.state == 2000000) break;
+    while (true) {
+        if (str.state == 2000000) break;
         //ask if someone organize competition
         pthread_mutex_lock(&mutex1[STATE_MUTEX]);
         Process::sendMessagesAskingIfCompetitionIsHeld(str);
@@ -161,50 +162,101 @@ void Process::behaviour() { // sendy
         pthread_mutex_lock(&mutex1[STATE_MUTEX]);
 
         //wait until threadB set state with role
-        while(str.state == ASK_ORGANIZATION);
+        while (str.state == ASK_ORGANIZATION);
 
-        if(str.state == DECIDED_TO_PARTICIPATE) {
+        if (str.state == DECIDED_TO_PARTICIPATE) {
             /* MAIN SCENARIO */
             //wait for info from organizer of competition about end of sign up
             MPI_Recv(&buf, 1, MPI_INT, str.idOfCompetitionWeTakePartIn, SIGN_IN_END, MPI_COMM_WORLD, &status);
+
             //ask if you can take hotel - first change state to provide that responder don't send agree when you asked
             pthread_mutex_lock(&mutex1[STATE_MUTEX]);
             str.state = ASK_HOTEL;
             pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
             Process::sendMessagesAskingHotel(str);
+
             //TODO: save clock of last send (or all sends?) to have clock to compare with recv ASKs
-            //recv agreement and in same time responder recv ASKs, so it also give info when you can take hotel
-            //TODO: how to take hotel
-            //...
-            //I HAVE HOTEL
-            pthread_mutex_lock(&mutex1[STATE_MUTEX]);
-            str.state = WAITING_FOR_END;
-            pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
-            buf = 1;
+            //recv agreement and react on agreement from myself == hotelResponder detect agree to take hotel
+            while (true) {
+                MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD, &status);
+                if (status.MPI_SOURCE == str.rank) {
+                    //I know i have hotel and state is changed by hotelResponder
+                    break;
+                } else {
+                    //add to list
+                    str.listOfProcessesThatAgreedOnHotel.push_back(status.MPI_SOURCE);
+
+                    //check if you have a lot of agrees
+                    pthread_mutex_lock(&mutex1[STATE_MUTEX]);
+                    pthread_mutex_lock(&mutex1[LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX]);
+                    pthread_mutex_lock(&mutex1[LIST_OF_PROCESSES_THAT_AGREED_ON_HOTEL_MUTEX]);
+                    if (str.listOfProcessesThatAgreedOnHotel.size() +
+                        str.listOfProcessesWantingPlaceInOurHotel.size() >=
+                        str.size - str.numberOfRoomsInHotel) {
+                        //I HAVE HOTEL
+                        //change state
+                        str.state = WAITING_FOR_END;
+                    }
+                    pthread_mutex_unlock(&mutex1[LIST_OF_PROCESSES_THAT_AGREED_ON_HOTEL_MUTEX]);
+                    pthread_mutex_unlock(&mutex1[LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX]);
+                    if(str.state == WAITING_FOR_END) {
+                        pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
+                        break;
+                    }
+                    pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
+                }
+            }
+
             //send info that you have hotel
+            buf = 1;
             pthread_mutex_lock(&mutex1[ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
             MPI_Send(&buf, 1, MPI_INT, str.idOfCompetitionWeTakePartIn, HOTEL_BOOKED, MPI_COMM_WORLD);
             pthread_mutex_unlock(&mutex1[ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+
             //wait for end of competition
             MPI_Recv(&buf, 1, MPI_INT, str.idOfCompetitionWeTakePartIn, COMPETITION_END, MPI_COMM_WORLD, &status);
             pthread_mutex_lock(&mutex1[STATE_MUTEX]);
             str.state = AFTER_COMPETITION_IN_HOTEL;
             pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
+
             //sit in hotel for some time
             sleep(3);
-            //here left hotel and send agree to process which are on list of ASKs
-        }
-        else {
+
+            //then set state to PRESTATE
+            pthread_mutex_lock(&mutex1[STATE_MUTEX]);
+            str.state = PRESTATE;
+            pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
+
+            //here left hotel and send agree to process which are on waiting list
+            pthread_mutex_lock(&mutex1[LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX);
+            buf = 1;
+            while (!str.listOfProcessesWantingPlaceInOurHotel.empty())
+            {
+                MPI_Send(&buf, 1, MPI_INT, str.listOfProcessesWantingPlaceInOurHotel.back(), HOTEL_ANSWER, MPI_COMM_WORLD);
+                str.listOfProcessesWantingPlaceInOurHotel.pop_back();
+            }
+            pthread_mutex_unlock(&mutex1[LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX]);
+
+            //clear data which are terminated(if needed?)
+            str.idOfCompetitionWeTakePartIn = -1;
+            str.city = -1;
+            str.cityOfCompetitionWeTakePartIn = -1;
+            str.hall = -1;
+            str.listOfProcessesThatAgreedOnHotel.clear();
+            str.potentialUsers.clear();
+            str.signedUsers.clear();
+
+        } else {
             /* ORGANIZE COMPETITION */
 
         }
     }
 
-    pthread_join(threadA,NULL);
-    pthread_join(threadB,NULL);
+    pthread_join(threadA, NULL);
+    pthread_join(threadB, NULL);
 }
 
-void* Process::doYouOrganizeResponder(void *ptr) {
+void *Process::doYouOrganizeResponder(void *ptr) {
     printf("creating xD \n");
     structToSend *sharedData = (structToSend *) ptr;
     int buf = 1;
@@ -217,9 +269,9 @@ void* Process::doYouOrganizeResponder(void *ptr) {
     printf("LEFT: tid = %d, mutex_addr=%d, process = %d\n", syscall(SYS_gettid), &mutex1[0], sharedData->rank);
     pthread_mutex_unlock(&mutex1[0]);
 
-    while(true){
+    while (true) {
         // to disable CLion's verification of endless loop
-        if(sharedData->state == 2000000)
+        if (sharedData->state == 2000000)
             break;
         decision = -1; //default_value = "NO"
         MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, COMPETITION_QUESTION, MPI_COMM_WORLD, &status);
@@ -228,7 +280,7 @@ void* Process::doYouOrganizeResponder(void *ptr) {
         pthread_mutex_lock(&mutex1[POTENTIAL_USERS_MUTEX]);
         pthread_mutex_lock(&mutex1[SIGNED_USERS_MUTEX]);
         //NOTE: city and hotelSlots mutex not needed; main thread can't change it in this state
-        if(sharedData->state == ASK_INVITES && freeSlotInVectors(sharedData)) {
+        if (sharedData->state == ASK_INVITES && freeSlotInVectors(sharedData)) {
             decision = sharedData->city;
             sharedData->potentialUsers.push_back(status.MPI_SOURCE);
             // If we have a free slot then answer with city ID in &decision and with tag COMPETITION_ANSWER
@@ -247,8 +299,8 @@ void* Process::doYouOrganizeResponder(void *ptr) {
     return nullptr;
 }
 
-bool Process::freeSlotInVectors(structToSend* str) {
-    return(str->potentialUsers.size() + str->signedUsers.size() >= str->hotelSlots);
+bool Process::freeSlotInVectors(structToSend *str) {
+    return (str->potentialUsers.size() + str->signedUsers.size() >= str->hotelSlots);
 }
 
 Process::Process() {
@@ -261,7 +313,7 @@ Process::Process() {
     str.hotelSlots = 30;
     str.cityOfCompetitionWeTakePartIn = -1;
     str.idOfCompetitionWeTakePartIn = -1;
-    srand((unsigned int) time(NULL) + str.rank*20);
+    srand((unsigned int) time(NULL) + str.rank * 20);
 }
 
 Process::Process(long i, long i1, long i2) {
@@ -272,7 +324,7 @@ Process::Process(long i, long i1, long i2) {
 }
 
 int generateRole() {
-    int randomNumber = rand()%100+1;
+    int randomNumber = rand() % 100 + 1;
     printf("%d\n", randomNumber);
     if (randomNumber < 20) {
         return DECIDED_TO_ORGANIZE;
@@ -285,42 +337,42 @@ void *Process::someoneOrganisesResponder(void *ptr) {
     int howManyRespondedThatDoNotOrganise = 0;
     int buf;
     MPI_Status status;
-    while(true) {
+    while (true) {
         // to disable CLion's verification of endless loop
-        if(sharedData->state == 2000000)
+        if (sharedData->state == 2000000)
             break;
         // If I waited for 200, so I wait for responses about organising a competition
         MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, COMPETITION_ANSWER, MPI_COMM_WORLD, &status);
-        if(sharedData->state == ASK_ORGANIZATION) {
-                if(buf != -1) {
-                    int newState = generateRole();
-                    if(newState == DECIDED_TO_ORGANIZE) {
-                        buf = -1;
-                        MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
-                    } else {
-                        //we are participant, so set variables and then send confirm
-                        pthread_mutex_lock(&mutex1[CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
-                        pthread_mutex_lock(&mutex1[ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
-                        sharedData->idOfCompetitionWeTakePartIn = status.MPI_SOURCE;
-                        sharedData->cityOfCompetitionWeTakePartIn = buf;
-                        pthread_mutex_unlock(&mutex1[ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
-                        pthread_mutex_unlock(&mutex1[CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
-                        // Participate in this competition
-                        buf = 1;
-                        MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
-                    }
-                    //We chosen state (org or part), so counter=0 and set state in struct
-                    howManyRespondedThatDoNotOrganise = 0;
-                    pthread_mutex_lock(&mutex1[STATE_MUTEX]);
-                    sharedData->state = newState;
-                    pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
+        if (sharedData->state == ASK_ORGANIZATION) {
+            if (buf != -1) {
+                int newState = generateRole();
+                if (newState == DECIDED_TO_ORGANIZE) {
+                    buf = -1;
+                    MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
                 } else {
-                    howManyRespondedThatDoNotOrganise++;
+                    //we are participant, so set variables and then send confirm
+                    pthread_mutex_lock(&mutex1[CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+                    pthread_mutex_lock(&mutex1[ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+                    sharedData->idOfCompetitionWeTakePartIn = status.MPI_SOURCE;
+                    sharedData->cityOfCompetitionWeTakePartIn = buf;
+                    pthread_mutex_unlock(&mutex1[ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+                    pthread_mutex_unlock(&mutex1[CITY_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX]);
+                    // Participate in this competition
+                    buf = 1;
+                    MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
                 }
-                if(howManyRespondedThatDoNotOrganise == sharedData->size-1) {
-                    sharedData->state = DECIDED_TO_ORGANIZE;
-                    howManyRespondedThatDoNotOrganise = 0;
-                }
+                //We chosen state (org or part), so counter=0 and set state in struct
+                howManyRespondedThatDoNotOrganise = 0;
+                pthread_mutex_lock(&mutex1[STATE_MUTEX]);
+                sharedData->state = newState;
+                pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
+            } else {
+                howManyRespondedThatDoNotOrganise++;
+            }
+            if (howManyRespondedThatDoNotOrganise == sharedData->size - 1) {
+                sharedData->state = DECIDED_TO_ORGANIZE;
+                howManyRespondedThatDoNotOrganise = 0;
+            }
         } else {
             buf = -1;
             MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
@@ -333,28 +385,49 @@ void *Process::canIHavePlaceInHotel(void *ptr) {
     structToSend *sharedData = (structToSend *) ptr;
     int buf;
     MPI_Status status;
-    while(true) {
+    while (true) {
         // to disable CLion's verification of endless loop
-        if(sharedData->state == 2000000)
+        if (sharedData->state == 2000000)
             break;
         MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, HOTEL_QUESTION, MPI_COMM_WORLD, &status);
 
         pthread_mutex_lock(&mutex1[STATE_MUTEX]);
         // If we are in state that we will ask for the hotel in some other thread
-        if(sharedData->state == ASK_HOTEL) {
+        if (sharedData->state == ASK_HOTEL || sharedData->state == WAITING_FOR_END ||
+            sharedData->state == AFTER_COMPETITION_IN_HOTEL) {
             // We agree if someone wants hotel in not our city
-            if(buf != sharedData->cityOfCompetitionWeTakePartIn) {
+            if (buf != sharedData->cityOfCompetitionWeTakePartIn) {
                 buf = 1;
                 MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
-            //  but when it's in our city, we will just add them to list of processes, which we will reply
-            // after we give back place in hotel
+                //  but when it's in our city, we will just add them to list of processes, which we will reply
+                // after we give back place in hotel
             } else {
-                sharedData->listOfProcessesWantingPlaceInOurHotel.push_back(status.MPI_SOURCE);
                 pthread_mutex_lock(&mutex1[LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX]);
-                if(sharedData->listOfProcessesThatAgreedOnHotel.size() + sharedData->listOfProcessesWantingPlaceInOurHotel.size() >=
-                        sharedData->size - sharedData->numberOfRoomsInHotel);
+                pthread_mutex_lock(&mutex1[LIST_OF_PROCESSES_THAT_AGREED_ON_HOTEL_MUTEX]);
+                sharedData->listOfProcessesWantingPlaceInOurHotel.push_back(status.MPI_SOURCE);
+                //find element on list of agree and remove if it is on list
+                std::vector<int>::iterator position = std::find(sharedData->listOfProcessesThatAgreedOnHotel.begin(),
+                                                                sharedData->listOfProcessesThatAgreedOnHotel.end(),
+                                                                status.MPI_SOURCE);
+                if (position !=
+                    sharedData->listOfProcessesThatAgreedOnHotel.end()) // == .end() means the element was not found
+                    sharedData->listOfProcessesThatAgreedOnHotel.erase(position); //remove element
+                //check if you can take hotel (only if you want to)
+                if (sharedData->state == ASK_HOTEL) {
+                    if (sharedData->listOfProcessesThatAgreedOnHotel.size() +
+                        sharedData->listOfProcessesWantingPlaceInOurHotel.size() >=
+                        sharedData->size - sharedData->numberOfRoomsInHotel) {
+                        //lock state mutex if its not locked
+                        buf = 1;
+                        //first change state, then send to unlock recv in behaviour()
+                        sharedData->state = WAITING_FOR_END;
+                        MPI_Send(&buf, 1, MPI_INT, sharedData->rank, HOTEL_ANSWER, MPI_COMM_WORLD);
+                    }
+                }
+                pthread_mutex_unlock(&mutex1[LIST_OF_PROCESSES_THAT_AGREED_ON_HOTEL_MUTEX]);
+                pthread_mutex_unlock(&mutex1[LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX]);
             }
-        // if we are in any other state, we agree to take a place in hotel
+            // if we are in any other state, we agree to take a place in hotel
         } else {
             buf = 1;
             MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
