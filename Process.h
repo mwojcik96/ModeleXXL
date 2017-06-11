@@ -67,6 +67,7 @@ public:
 
     Process(long i, long i1, long i2);
 
+    vector<int> randomize(structToSend send);
 };
 
 

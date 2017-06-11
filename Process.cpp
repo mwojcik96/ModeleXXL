@@ -41,6 +41,8 @@ using namespace std;
 // HERE'S THE DEFINITION OF MUTEXES
 pthread_mutex_t mutex1[16];
 
+int myrandom (int i) { return std::rand()%i;}
+
 Process::Process() {
     MPI_Comm_rank(MPI_COMM_WORLD, &str.rank);
     MPI_Comm_size(MPI_COMM_WORLD, &str.size);
@@ -170,6 +172,7 @@ void Process::behaviour() { // sendy
     int buf;
     int tabToBeSent[2];
     int recvBooking;
+    vector<int> processesToBeInvited;
     MPI_Status status;
 
     /* START ALGORITHM */
@@ -295,22 +298,22 @@ void Process::behaviour() { // sendy
                 //check if you have a lot of agrees - then you have hall, so left loop
                 if (str.hotelAgreed >= str.size - 1) {
                     str.state = ASK_INVITES;
-
+                    pthread_mutex_lock(&mutex1[CLOCK_MUTEX]);
+                    str.clock++;
+                    tabToBeSent[0] = str.clock;
                     //send invites to other processes (== number of rooms) and add them on potential users list
                     //TODO: randomize
+                    processesToBeInvited = randomize(str);
+                    pthread_mutex_lock(&mutex1[POTENTIAL_USERS_MUTEX]);
+                    pthread_mutex_lock(&mutex1[CITY_MUTEX]);
                     for (int i = 0; i < str.numberOfRoomsInHotel; i++) {
-                        pthread_mutex_lock(&mutex1[POTENTIAL_USERS_MUTEX]);
-                        pthread_mutex_lock(&mutex1[CITY_MUTEX]);
                         tabToBeSent[1] = (int)str.city;
-                        pthread_mutex_unlock(&mutex1[CITY_MUTEX]);
-                        pthread_mutex_lock(&mutex1[CLOCK_MUTEX]);
-                        str.clock++;
-                        tabToBeSent[0] = str.clock;
-                        MPI_Send(&buf, 1, MPI_INT, (str.rank + i + 1) % str.size, COMPETITION_ANSWER, MPI_COMM_WORLD);
-                        pthread_mutex_unlock(&mutex1[CLOCK_MUTEX]);
-                        str.potentialUsers.push_back((str.rank + i + 1) % str.size);
-                        pthread_mutex_unlock(&mutex1[POTENTIAL_USERS_MUTEX]);
+                        MPI_Send(&buf, 1, MPI_INT, processesToBeInvited[i], COMPETITION_ANSWER, MPI_COMM_WORLD);
+                        str.potentialUsers.push_back(processesToBeInvited[i]);
                     }
+                    pthread_mutex_unlock(&mutex1[CITY_MUTEX]);
+                    pthread_mutex_unlock(&mutex1[POTENTIAL_USERS_MUTEX]);
+                    pthread_mutex_unlock(&mutex1[CLOCK_MUTEX]);
                     //left critical section and left loop to wait for all potential responsed
                     pthread_mutex_unlock(&mutex1[HALL_AGREED_MUTEX]);
                     pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
@@ -344,13 +347,18 @@ void Process::behaviour() { // sendy
                 if(str.potentialUsers.empty()) {
                     str.state = RECV_HOTEL_RESERVATIONS;
                     pthread_mutex_lock(&mutex1[CLOCK_MUTEX]);
+                    pthread_mutex_lock(&mutex1[COMPETITION_CLOCK_MUTEX]);
+                    str.competitionClock = str.clock;
                     str.clock++;
-                    tabToBeSent[0] = str.clock;
-                    tabToBeSent[1] = buf;
+                    int sendFields[3];
+                    sendFields[0] = str.clock;
+                    sendFields[1] = str.competitionClock;
+                    sendFields[2] = buf;
                     //send info about close sign in - DON'T CLEAR signedUsers - you need to know how many hotelRes recv
                     for(std::vector<int>::size_type i = 0; i != str.signedUsers.size(); i++) {
-                        MPI_Send(tabToBeSent, 2, MPI_INT, str.signedUsers.back(), SIGN_IN_END, MPI_COMM_WORLD);
+                        MPI_Send(sendFields, 3, MPI_INT, str.signedUsers.back(), SIGN_IN_END, MPI_COMM_WORLD);
                     }
+                    pthread_mutex_unlock(&mutex1[COMPETITION_CLOCK_MUTEX]);
                     pthread_mutex_unlock(&mutex1[CLOCK_MUTEX]);
                     pthread_mutex_unlock(&mutex1[SIGNED_USERS_MUTEX]);
                     pthread_mutex_unlock(&mutex1[POTENTIAL_USERS_MUTEX]);
@@ -378,6 +386,9 @@ void Process::behaviour() { // sendy
                     //change state to PRESTATE
                     str.state=PRESTATE;
                     pthread_mutex_lock(&mutex1[CLOCK_MUTEX]);
+                    pthread_mutex_lock(&mutex1[COMPETITION_CLOCK_MUTEX]);
+                    str.competitionClock = -1; // you are not an organizer and you don't have competition priority
+                    pthread_mutex_lock(&mutex1[COMPETITION_CLOCK_MUTEX]);
                     str.clock++;
                     tabToBeSent[0] = str.clock;
                     tabToBeSent[1] = 1;
@@ -643,4 +654,15 @@ void *Process::canITakeTheHallResponder(void *ptr) {
 
     }
     return nullptr;
+}
+
+vector<int> Process::randomize(structToSend str) {
+    vector<int> newVector;
+    for (int i = 0; i < str.size; i++) {
+        if (i != str.rank) {
+            newVector.push_back(i);
+        }
+    }
+    random_shuffle(newVector.begin(), newVector.end(), myrandom);
+    return newVector;
 }
