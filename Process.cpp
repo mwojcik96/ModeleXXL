@@ -8,7 +8,6 @@
 #include "Process.h"
 #include <syscall.h>
 #include <algorithm>
-#include <pthread.h>
 
 
 using namespace std;
@@ -106,7 +105,7 @@ void incrementAfterMPIRecv(structToSend ourStr, vector<int> receivedClock) {
 */
 
 void Process::sendMessagesAskingIfCompetitionIsHeld(structToSend str) {
-    int buf = COMPETITION_QUESTION;
+    int buf = 1;
     for (int i = 0; i < str.size; i++) {
         if (i != str.rank) {
             printf("Sending messages to %d process to check whether any competitions is held. I am %d\n", i, str.rank);
@@ -116,7 +115,7 @@ void Process::sendMessagesAskingIfCompetitionIsHeld(structToSend str) {
 }
 
 void Process::sendMessagesAskingHotel(structToSend str) {
-    int buf = HOTEL_QUESTION;
+    int buf = str.city;
     for (int i = 0; i < str.size; i++) {
         if (i != str.rank) {
             printf("Sending messages to %d process to get hotel. I am %d\n", i, str.rank);
@@ -126,11 +125,13 @@ void Process::sendMessagesAskingHotel(structToSend str) {
 }
 
 void Process::sendMessagesAskingHall(structToSend str) {
-    int buf = HALL_QUESTION;
+    int buf[2];
+    buf[0] = (int) str.city;
+    buf[1] = (int) str.hall;
     for (int i = 0; i < str.size; i++) {
         if (i != str.rank) {
             printf("Sending messages to %d process to get hall. I am %d\n", i, str.rank);
-            MPI_Send(&buf, 1, MPI_INT, i, HALL_QUESTION, MPI_COMM_WORLD);
+            MPI_Send(&buf, 2, MPI_INT, i, HALL_QUESTION, MPI_COMM_WORLD);
         }
     }
 }
@@ -532,7 +533,7 @@ void *Process::canITakeTheHallResponder(void *ptr) {
         // to disable CLion's verification of endless loop
         if (sharedData->state == 2000000)
             break;
-        MPI_Recv(&buf, 2, MPI_INT, MPI_ANY_SOURCE, HOTEL_QUESTION, MPI_COMM_WORLD, &status);
+        MPI_Recv(&buf, 2, MPI_INT, MPI_ANY_SOURCE, HALL_QUESTION, MPI_COMM_WORLD, &status);
         pthread_mutex_lock(&mutex1[STATE_MUTEX]);
         // If we are in state that we will ask for the hotel or we are in hotel now
         if (sharedData->state == ASK_HALL || sharedData->state == ASK_INVITES ||
@@ -540,7 +541,7 @@ void *Process::canITakeTheHallResponder(void *ptr) {
             if(buf[0] == sharedData->city && buf[1] == sharedData->hall) { // if he wants our hall
                 if(true) { // if his priority is higher
                     response = 1;
-                    MPI_Send(&response, 1, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
+                    MPI_Send(&response, 1, MPI_INT, status.MPI_SOURCE, HALL_ANSWER, MPI_COMM_WORLD);
                 } else {
                     pthread_mutex_lock(&mutex1[LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HALL_MUTEX]);
                     sharedData->listOfProcessesWantingPlaceInOurHall.push_back(status.MPI_SOURCE);
@@ -549,7 +550,7 @@ void *Process::canITakeTheHallResponder(void *ptr) {
             }
         } else { // in any other state just send consent
             response = 1;
-            MPI_Send(&response, 1, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
+            MPI_Send(&response, 1, MPI_INT, status.MPI_SOURCE, HALL_ANSWER, MPI_COMM_WORLD);
         }
         pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
 
