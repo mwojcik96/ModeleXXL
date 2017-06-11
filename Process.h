@@ -55,12 +55,11 @@ private:
     static void *canIHavePlaceInHotelResponder(void *ptr);
     static void *canITakeTheHallResponder(void *ptr);
     static bool freeSlotInVectors(structToSend* str);
-    void sendMessagesAskingIfCompetitionIsHeld(structToSend str);
-    void sendMessagesAskingHotel(structToSend str);
-    void sendMessagesAskingHall(structToSend str);
+    void sendMessagesAskingIfCompetitionIsHeld();
+    void sendMessagesAskingHotel();
+    void sendMessagesAskingHall();
     void printInfo(string info);
-    static void printInfo(string info, structToSend* str);
-    static void printInfoFromThread(string basic_string);
+    static void printInfoFromThread(string info, structToSend *str);
     void clearStructure(structToSend str);
 public:
     Process();
