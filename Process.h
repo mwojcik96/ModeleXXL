@@ -61,6 +61,7 @@ private:
     void sendMessagesAskingIfCompetitionIsHeld(structToSend str);
     void sendMessagesAskingHotel(structToSend str);
     void sendMessagesAskingHall(structToSend str);
+    void printInfo(string info);
 
 public:
     Process();
@@ -70,6 +71,8 @@ public:
     Process(long i, long i1, long i2);
 
     vector<int> randomize(structToSend send);
+
+    static void printInfoFromThread(string basic_string);
 };
 
 
