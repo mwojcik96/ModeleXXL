@@ -32,9 +32,6 @@ struct structToSend {
     long city;
     long hall;
     int state;
-    int hotelSlots;
-    //vector<int> clock;
-    //vector<int> competitionClock;
     int clock;
     int competitionClock;
     vector<int> potentialUsers;
@@ -63,7 +60,8 @@ private:
     void sendMessagesAskingHall(structToSend str);
     void printInfo(string info);
     static void printInfo(string info, structToSend* str);
-
+    static void printInfoFromThread(string basic_string);
+    void clearStructure(structToSend str);
 public:
     Process();
     void behaviour();
@@ -73,7 +71,7 @@ public:
 
     vector<int> randomize(structToSend send);
 
-    static void printInfoFromThread(string basic_string);
+
 };
 
 

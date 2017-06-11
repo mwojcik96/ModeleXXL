@@ -50,7 +50,6 @@ Process::Process() {
     str.city = -1;
     str.hall = -1;
     str.state = PRESTATE;
-    str.hotelSlots = 30;
     str.cityOfCompetitionWeTakePartIn = -1;
     str.idOfCompetitionWeTakePartIn = -1;
     str.clock = 0;
@@ -65,7 +64,6 @@ Process::Process(long i, long i1, long i2) {
     str.city = -1;
     str.hall = -1;
     str.state = PRESTATE;
-    str.hotelSlots = 30;
     str.cityOfCompetitionWeTakePartIn = -1;
     str.idOfCompetitionWeTakePartIn = -1;
     str.clock = 0;
@@ -74,6 +72,14 @@ Process::Process(long i, long i1, long i2) {
     str.numberOfCities = i;
     str.numberOfHalls = i1;
     str.numberOfRoomsInHotel = i2;
+    str.hotelAgreed=0;
+    str.hallAgreed=0;
+    str.hotelRequestClock=0;
+    str.hallRequestClock=0;
+    str.potentialUsers.clear();
+    str.signedUsers.clear();
+    str.listOfProcessesWantingPlaceInOurHotel.clear();
+    str.listOfProcessesWantingPlaceInOurHall.clear();
 }
 
 /*
@@ -199,7 +205,10 @@ void Process::behaviour() { // sendy
         //wait until threadB set state with role
         while (true) {
             pthread_mutex_lock(&strMutex);
-            if (str.state != ASK_ORGANIZATION) break;
+            if (str.state != ASK_ORGANIZATION) {
+                pthread_mutex_unlock(&strMutex);
+                break;
+            }
             pthread_mutex_unlock(&strMutex);
         }
 
@@ -276,15 +285,20 @@ void Process::behaviour() { // sendy
             printInfo("Wysłałem informację o zwolnieniu hotelu w mieście " +
                       to_string(str.cityOfCompetitionWeTakePartIn) + " do czekających na nią");
             //clear data which are terminated(all needed?)
-            str.idOfCompetitionWeTakePartIn = -1;
-            str.city = -1;
-            str.cityOfCompetitionWeTakePartIn = -1;
-            str.hall = -1;
+            str.city=-1;
+            str.hall=-1;
+            str.state=PRESTATE;
+            str.competitionClock=-1;
             str.potentialUsers.clear();
             str.signedUsers.clear();
+            str.cityOfCompetitionWeTakePartIn=-1;
+            str.idOfCompetitionWeTakePartIn=-1;
             str.listOfProcessesWantingPlaceInOurHotel.clear();
-            str.hallRequestClock = -1;
-            str.hotelRequestClock = -1;
+            str.listOfProcessesWantingPlaceInOurHall.clear();
+            str.hotelAgreed=0;
+            str.hallAgreed=0;
+            str.hotelRequestClock=0;
+            str.hallRequestClock=0;
 
             pthread_mutex_unlock(&strMutex);
 
@@ -310,9 +324,10 @@ void Process::behaviour() { // sendy
                 str.clock = max(str.clock, recv2Tab[0]) + 1;
                 printInfo("Odebrałem zgodę na zajęcie sali od " + to_string(status.MPI_SOURCE));
                 str.hallAgreed++;
+                printInfo("Mam " + to_string(str.hallAgreed) + " zgód na dostęp do sali");
 
                 //check if you have a lot of agrees - then you have hall, so left loop
-                if (str.hotelAgreed >= str.size - 1) {
+                if (str.hallAgreed >= str.size - 1) {
                     str.state = ASK_INVITES;
                     str.clock++;
                     tabToBeSent[0] = str.clock;
@@ -356,7 +371,8 @@ void Process::behaviour() { // sendy
 
                 //check if potentialUsers is empty -> then close sign in and send it to participants
                 if (str.potentialUsers.empty()) {
-                    cout<<"Zmieniam stan na RECV_HOTEL_RESERVATIONS"<<endl;
+                    printInfo("Zmieniam stan na RECV_HOTEL_RESERVATIONS");
+                    printInfo("Mam " + to_string(str.signedUsers.size()) + " uczestników");
                     str.state = RECV_HOTEL_RESERVATIONS;
                     str.competitionClock = str.clock;
                     str.clock++;
@@ -375,55 +391,100 @@ void Process::behaviour() { // sendy
                 pthread_mutex_unlock(&strMutex);
             }
 
-            //wait for participants to take hotel
-            recvBooking = 0;
-            while (true) {
-                MPI_Recv(recv2Tab, 2, MPI_INT, MPI_ANY_SOURCE, HOTEL_BOOKED, MPI_COMM_WORLD, &status);
 
-                pthread_mutex_lock(&strMutex);
-                str.clock = max(str.clock, recv2Tab[0]) + 1;
-                printInfo("Odebrałem potwierdzenie rezerwacji hotelu od " + to_string(status.MPI_SOURCE));
-                //count confirmed participant from signed_users
-                recvBooking++;
-
-                //check if you have a lot of booking -> then end competition and left hall in same moment
-                if (recvBooking >= str.signedUsers.size()) {
-                    //change state to PRESTATE and prepare to begin algorithm
-                    str.state = PRESTATE;
-                    str.competitionClock = -1; // you are not an organizer and you don't have competition priority
-                    str.clock++;
-                    tabToBeSent[0] = str.clock;
-                    tabToBeSent[1] = 1;
-                    //send to participants info about end of competition
-                    while (!str.signedUsers.empty()) {
-                        MPI_Send(tabToBeSent, 2, MPI_INT, str.signedUsers.back(), COMPETITION_END, MPI_COMM_WORLD);
-                        str.signedUsers.pop_back();
-                    }
-                    printInfo("Wysłałem informację o zakończeniu konkursu do uczestników");
-                    str.clock++;
-                    tabToBeSent[0] = str.clock;
-                    //send agree to process waiting for your hall
-                    while (!str.listOfProcessesWantingPlaceInOurHall.empty()) {
-                        MPI_Send(tabToBeSent, 2, MPI_INT, str.listOfProcessesWantingPlaceInOurHall.back(), HALL_ANSWER,
-                                 MPI_COMM_WORLD);
-                        str.listOfProcessesWantingPlaceInOurHall.pop_back();
-                    }
-                    printInfo("Wysłałem informację o zwolnieniu sali do czekających na nią");
-                    //clear data which are terminated(all needed?)
-                    str.idOfCompetitionWeTakePartIn = -1;
-                    str.city = -1;
-                    str.cityOfCompetitionWeTakePartIn = -1;
-                    str.hall = -1;
-                    str.potentialUsers.clear();
-                    str.signedUsers.clear();
-                    str.listOfProcessesWantingPlaceInOurHall.clear();
-                    str.hallRequestClock = -1;
-                    str.hotelRequestClock = -1;
-
-                    pthread_mutex_unlock(&strMutex);
-                    break;
+            //check if you have any participants - if not, then end without waiting to recv
+            pthread_mutex_lock(&strMutex);
+            if(str.signedUsers.size() == 0) {
+                printInfo("Nie mam uczestników, więc nie czekam na zgody, kończę od razu konkurs");
+                str.state = PRESTATE;
+                str.competitionClock = -1; // you are not an organizer and you don't have competition priority
+                str.clock++;
+                tabToBeSent[0] = str.clock;
+                tabToBeSent[1] = 1;
+                //send agree to process waiting for your hall
+                while (!str.listOfProcessesWantingPlaceInOurHall.empty()) {
+                    MPI_Send(tabToBeSent, 2, MPI_INT, str.listOfProcessesWantingPlaceInOurHall.back(), HALL_ANSWER,
+                             MPI_COMM_WORLD);
+                    str.listOfProcessesWantingPlaceInOurHall.pop_back();
                 }
+                printInfo("Wysłałem informację o zwolnieniu sali do czekających na nią");
+                //clear data which are terminated(all needed?)
+                str.city=-1;
+                str.hall=-1;
+                str.state=PRESTATE;
+                str.competitionClock=-1;
+                str.potentialUsers.clear();
+                str.signedUsers.clear();
+                str.cityOfCompetitionWeTakePartIn=-1;
+                str.idOfCompetitionWeTakePartIn=-1;
+                str.listOfProcessesWantingPlaceInOurHotel.clear();
+                str.listOfProcessesWantingPlaceInOurHall.clear();
+                str.hotelAgreed=0;
+                str.hallAgreed=0;
+                str.hotelRequestClock=0;
+                str.hallRequestClock=0;
                 pthread_mutex_unlock(&strMutex);
+            }
+            else {
+                //unlock mutex which you locked to check state
+                pthread_mutex_unlock(&strMutex);
+                //wait for participants to take hotel
+                recvBooking = 0;
+                while (true) {
+
+                    MPI_Recv(recv2Tab, 2, MPI_INT, MPI_ANY_SOURCE, HOTEL_BOOKED, MPI_COMM_WORLD, &status);
+
+                    pthread_mutex_lock(&strMutex);
+                    str.clock = max(str.clock, recv2Tab[0]) + 1;
+                    printInfo("Odebrałem potwierdzenie rezerwacji hotelu od " + to_string(status.MPI_SOURCE));
+                    //count confirmed participant from signed_users
+                    recvBooking++;
+
+                    //check if you have a lot of booking -> then end competition and left hall in same moment
+                    if (recvBooking >= str.signedUsers.size()) {
+                        //change state to PRESTATE and prepare to begin algorithm
+                        str.state = PRESTATE;
+                        str.competitionClock = -1; // you are not an organizer and you don't have competition priority
+                        str.clock++;
+                        tabToBeSent[0] = str.clock;
+                        tabToBeSent[1] = 1;
+                        //send to participants info about end of competition
+                        while (!str.signedUsers.empty()) {
+                            MPI_Send(tabToBeSent, 2, MPI_INT, str.signedUsers.back(), COMPETITION_END, MPI_COMM_WORLD);
+                            str.signedUsers.pop_back();
+                        }
+                        printInfo("Wysłałem informację o zakończeniu konkursu do uczestników");
+                        str.clock++;
+                        tabToBeSent[0] = str.clock;
+                        //send agree to process waiting for your hall
+                        while (!str.listOfProcessesWantingPlaceInOurHall.empty()) {
+                            MPI_Send(tabToBeSent, 2, MPI_INT, str.listOfProcessesWantingPlaceInOurHall.back(),
+                                     HALL_ANSWER,
+                                     MPI_COMM_WORLD);
+                            str.listOfProcessesWantingPlaceInOurHall.pop_back();
+                        }
+                        printInfo("Wysłałem informację o zwolnieniu sali do czekających na nią");
+                        //clear data which are terminated(all needed?)
+                        str.city=-1;
+                        str.hall=-1;
+                        str.state=PRESTATE;
+                        str.competitionClock=-1;
+                        str.potentialUsers.clear();
+                        str.signedUsers.clear();
+                        str.cityOfCompetitionWeTakePartIn=-1;
+                        str.idOfCompetitionWeTakePartIn=-1;
+                        str.listOfProcessesWantingPlaceInOurHotel.clear();
+                        str.listOfProcessesWantingPlaceInOurHall.clear();
+                        str.hotelAgreed=0;
+                        str.hallAgreed=0;
+                        str.hotelRequestClock=0;
+                        str.hallRequestClock=0;
+
+                        pthread_mutex_unlock(&strMutex);
+                        break;
+                    }
+                    pthread_mutex_unlock(&strMutex);
+                }
             }
         }
     }
@@ -475,7 +536,7 @@ void *Process::doYouOrganizeResponder(void *ptr) {
 }
 
 bool Process::freeSlotInVectors(structToSend *str) {
-    return (str->potentialUsers.size() + str->signedUsers.size() >= str->hotelSlots);
+    return (str->potentialUsers.size() + str->signedUsers.size() >= str->numberOfRoomsInHotel);
 }
 
 
@@ -539,6 +600,7 @@ void *Process::someoneOrganisesResponder(void *ptr) {
             if (howManyRespondedThatDoNotOrganise == sharedData->size - 1) {
                 printInfo("Muszę być organizatorem, bo nie ma żadnych konkursów. Ustawiłem stan na DECIDED_TO_ORGANIZE", sharedData);
                 sharedData->state = DECIDED_TO_ORGANIZE;
+                //printf("STAN: %d\n", sharedData->state);
                 howManyRespondedThatDoNotOrganise = 0;
             }
         } else {
@@ -599,7 +661,8 @@ void *Process::canIHavePlaceInHotelResponder(void *ptr) {
                     else if (recvTab[3] == sharedData->idOfCompetitionWeTakePartIn) {
                         if (recvTab[0] < sharedData->hotelRequestClock) priority = false;
                         else if (recvTab[0] == sharedData->hotelRequestClock) {
-                            priority = status.MPI_SOURCE >= sharedData->rank; //cannot be equal
+                            if(sharedData->rank > status.MPI_SOURCE) priority = false;
+                            else priority = true;
                         } else if (recvTab[0] > sharedData->hotelRequestClock) priority = true;
                     } else if (recvTab[3] > sharedData->idOfCompetitionWeTakePartIn) priority = true;
                 } else if (recvTab[2] > sharedData->competitionClock) priority = true;
@@ -665,7 +728,8 @@ void *Process::canITakeTheHallResponder(void *ptr) {
                     priority = false; //don't want hall (probably impossible, but ..)
                 else if (recvTab[0] < sharedData->hallRequestClock) priority = false;
                 else if (recvTab[0] == sharedData->hallRequestClock) {
-                    priority = status.MPI_SOURCE >= sharedData->rank; //cannot be equal
+                   if(sharedData->rank > status.MPI_SOURCE) priority = false;
+                    else priority = true;
                 } else if (recvTab[0] > sharedData->hallRequestClock) priority = true;
 
                 if (!priority) { // if his priority is higher
@@ -716,5 +780,3 @@ vector<int> Process::randomize(structToSend str) {
     random_shuffle(newVector.begin(), newVector.end(), myrandom);
     return newVector;
 }
-
-
