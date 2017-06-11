@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <iostream>
 #include "Process.h"
-#include <syscall.h>
 #include <algorithm>
 
 
@@ -115,7 +114,7 @@ void Process::sendMessagesAskingIfCompetitionIsHeld(structToSend str) {
 }
 
 void Process::sendMessagesAskingHotel(structToSend str) {
-    int buf = str.city;
+    int buf = (int) str.city;
     for (int i = 0; i < str.size; i++) {
         if (i != str.rank) {
             printf("Sending messages to %d process to get hotel. I am %d\n", i, str.rank);
@@ -161,10 +160,14 @@ void Process::behaviour() { // sendy
         pthread_mutex_lock(&mutex1[STATE_MUTEX]);
         str.state = ASK_ORGANIZATION;
         Process::sendMessagesAskingIfCompetitionIsHeld(str);
-        pthread_mutex_lock(&mutex1[STATE_MUTEX]);
+        pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
 
         //wait until threadB set state with role
-        while (str.state == ASK_ORGANIZATION);
+        while (true) {
+            pthread_mutex_lock(&mutex1[STATE_MUTEX]);
+            if (str.state != ASK_ORGANIZATION) break;
+            pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
+        }
 
         if (str.state == DECIDED_TO_PARTICIPATE) {
             /* MAIN SCENARIO */
@@ -375,39 +378,37 @@ pthread_join(threadA,NULL);
 pthread_join(threadB,NULL);
 }
 
+//COMPETITION_QUESTION RESPONDER
 void *Process::doYouOrganizeResponder(void *ptr) {
-    printf("creating xD \n");
     structToSend *sharedData = (structToSend *) ptr;
     int buf = 1;
     int decision;
     MPI_Status status;
-    // DOESN'T WORK HERE
-    pthread_mutex_lock(&mutex1[0]);
-    printf("INSIDE: tid = %ld, mutex_addr=%p, process = %d\n", syscall(SYS_gettid), &mutex1[0], sharedData->rank);
-    sleep(3);
-    printf("LEFT: tid = %ld, mutex_addr=%p, process = %d\n", syscall(SYS_gettid), &mutex1[0], sharedData->rank);
-    pthread_mutex_unlock(&mutex1[0]);
 
     while (true) {
         // to disable CLion's verification of endless loop
         if (sharedData->state == 2000000)
             break;
-        decision = -1; //default_value = "NO"
+
         MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, COMPETITION_QUESTION, MPI_COMM_WORLD, &status);
-        // MUTEXES
+
         pthread_mutex_lock(&mutex1[STATE_MUTEX]);
         pthread_mutex_lock(&mutex1[POTENTIAL_USERS_MUTEX]);
         pthread_mutex_lock(&mutex1[SIGNED_USERS_MUTEX]);
-        //NOTE: city and hotelSlots mutex not needed; main thread can't change it in this state
+
+        // If we have a free slot then answer with city ID
         if (sharedData->state == ASK_INVITES && freeSlotInVectors(sharedData)) {
             decision = (int)sharedData->city;
             sharedData->potentialUsers.push_back(status.MPI_SOURCE);
-            // If we have a free slot then answer with city ID in &decision and with tag COMPETITION_ANSWER
-        } else {
+        }
             // If any condition is not satisfied, send -1 as city ID
+        else {
             decision = -1;
         }
+
+        //send msg
         MPI_Send(&decision, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_ANSWER, MPI_COMM_WORLD);
+
         pthread_mutex_unlock(&mutex1[SIGNED_USERS_MUTEX]);
         pthread_mutex_unlock(&mutex1[POTENTIAL_USERS_MUTEX]);
         pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
@@ -429,6 +430,7 @@ int generateRole() {
     return DECIDED_TO_PARTICIPATE;
 }
 
+//COMPETITION_ANSWER RESPONDER (THIS THREAD SET ROLE AND STATE)
 void *Process::someoneOrganisesResponder(void *ptr) {
     structToSend *sharedData = (structToSend *) ptr;
     int howManyRespondedThatDoNotOrganise = 0;
@@ -440,6 +442,8 @@ void *Process::someoneOrganisesResponder(void *ptr) {
             break;
         // If I waited for 200, so I wait for responses about organising a competition
         MPI_Recv(&buf, 1, MPI_INT, MPI_ANY_SOURCE, COMPETITION_ANSWER, MPI_COMM_WORLD, &status);
+
+        pthread_mutex_lock(&mutex1[STATE_MUTEX]);
         if (sharedData->state == ASK_ORGANIZATION) {
             if (buf != -1) {
                 int newState = generateRole();
@@ -460,24 +464,27 @@ void *Process::someoneOrganisesResponder(void *ptr) {
                 }
                 //We chosen state (org or part), so counter=0 and set state in struct
                 howManyRespondedThatDoNotOrganise = 0;
-                pthread_mutex_lock(&mutex1[STATE_MUTEX]);
                 sharedData->state = newState;
-                pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
             } else {
                 howManyRespondedThatDoNotOrganise++;
             }
+            //check if you have a lot of "NO" and you must be organizer - also you have role so counter = 0
             if (howManyRespondedThatDoNotOrganise == sharedData->size - 1) {
                 sharedData->state = DECIDED_TO_ORGANIZE;
                 howManyRespondedThatDoNotOrganise = 0;
             }
         } else {
+            //in other states just send you don't want to participate
             buf = -1;
             MPI_Send(&buf, 1, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
         }
+        pthread_mutex_unlock(&mutex1[STATE_MUTEX]);
     }
     return nullptr;
 }
 
+
+//HOTEL_QUESTION RESPONDER
 void *Process::canIHavePlaceInHotelResponder(void *ptr) {
     structToSend *sharedData = (structToSend *) ptr;
     int buf;
@@ -524,6 +531,7 @@ void *Process::canIHavePlaceInHotelResponder(void *ptr) {
     return nullptr;
 }
 
+//HALL_QUESTION RESPONDER
 void *Process::canITakeTheHallResponder(void *ptr) {
     structToSend *sharedData = (structToSend *) ptr;
     int buf[2]; // buf[0] is city id, buf[1] is hall id
