@@ -62,6 +62,7 @@ private:
     void sendMessagesAskingHotel(structToSend str);
     void sendMessagesAskingHall(structToSend str);
     void printInfo(string info);
+    static void printInfo(string info, structToSend* str);
 
 public:
     Process();

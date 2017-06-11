@@ -122,6 +122,10 @@ void Process::printInfo(string info) {
     cout << str.clock << " PID: " << str.rank << ", INFO: " << info << endl;
 }
 
+void Process::printInfo(string info, structToSend* str) {
+    cout << str->clock << " PID: " << str->rank << ", INFO: " << info << endl;
+}
+
 void Process::sendMessagesAskingIfCompetitionIsHeld(structToSend str) {
     int buf[2] = {0, 1};
     str.clock++;
@@ -164,7 +168,7 @@ void Process::behaviour() { // sendy
 
     printf("Sending messages to check whether any competitions is held.\n");
     printf("FROM_STRUCT: size=%d, rank=%d, city=%ld\n", str.size, str.rank, str.city);
-    printf("FROM_STRUCT: nrCity=%d, nrHalls=%d, nrHotels=%ld\n", str.numberOfCities, str.numberOfHalls,
+    printf("FROM_STRUCT: nrCity=%ld, nrHalls=%ld, nrHotels=%ld\n", str.numberOfCities, str.numberOfHalls,
            str.numberOfRoomsInHotel);
     // Create a thread, which will receive questions "Do you organize a competition?"
     pthread_t threadA;
@@ -285,6 +289,7 @@ void Process::behaviour() { // sendy
             pthread_mutex_unlock(&strMutex);
 
         } else {
+            printInfo("Postanowiłem zorganizować konkurs");
             /* ORGANIZE COMPETITION */
             pthread_mutex_lock(&strMutex);
             //choose city and hall
@@ -351,6 +356,7 @@ void Process::behaviour() { // sendy
 
                 //check if potentialUsers is empty -> then close sign in and send it to participants
                 if (str.potentialUsers.empty()) {
+                    cout<<"Zmieniam stan na RECV_HOTEL_RESERVATIONS"<<endl;
                     str.state = RECV_HOTEL_RESERVATIONS;
                     str.competitionClock = str.clock;
                     str.clock++;
@@ -511,6 +517,7 @@ void *Process::someoneOrganisesResponder(void *ptr) {
                     cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
                          << status.MPI_SOURCE << " informację, nie wezmę udziału w konkursie" << endl;
                 } else {
+                    printInfo("Decided to become participant", sharedData);
                     //we are participant, so set variables and then send confirm
                     sharedData->idOfCompetitionWeTakePartIn = status.MPI_SOURCE;
                     sharedData->cityOfCompetitionWeTakePartIn = tabToBeSent[1];
@@ -530,6 +537,7 @@ void *Process::someoneOrganisesResponder(void *ptr) {
             }
             //check if you have a lot of "NO" and you must be organizer - also you have role so counter = 0
             if (howManyRespondedThatDoNotOrganise == sharedData->size - 1) {
+                printInfo("Muszę być organizatorem, bo nie ma żadnych konkursów. Ustawiłem stan na DECIDED_TO_ORGANIZE", sharedData);
                 sharedData->state = DECIDED_TO_ORGANIZE;
                 howManyRespondedThatDoNotOrganise = 0;
             }
@@ -591,8 +599,7 @@ void *Process::canIHavePlaceInHotelResponder(void *ptr) {
                     else if (recvTab[3] == sharedData->idOfCompetitionWeTakePartIn) {
                         if (recvTab[0] < sharedData->hotelRequestClock) priority = false;
                         else if (recvTab[0] == sharedData->hotelRequestClock) {
-                            if (status.MPI_SOURCE < sharedData->rank) priority = false;
-                            else priority = true; //cannot be equal
+                            priority = status.MPI_SOURCE >= sharedData->rank; //cannot be equal
                         } else if (recvTab[0] > sharedData->hotelRequestClock) priority = true;
                     } else if (recvTab[3] > sharedData->idOfCompetitionWeTakePartIn) priority = true;
                 } else if (recvTab[2] > sharedData->competitionClock) priority = true;
@@ -658,8 +665,7 @@ void *Process::canITakeTheHallResponder(void *ptr) {
                     priority = false; //don't want hall (probably impossible, but ..)
                 else if (recvTab[0] < sharedData->hallRequestClock) priority = false;
                 else if (recvTab[0] == sharedData->hallRequestClock) {
-                    if (status.MPI_SOURCE < sharedData->rank) priority = false;
-                    else priority = true; //cannot be equal
+                    priority = status.MPI_SOURCE >= sharedData->rank; //cannot be equal
                 } else if (recvTab[0] > sharedData->hallRequestClock) priority = true;
 
                 if (!priority) { // if his priority is higher
@@ -710,3 +716,5 @@ vector<int> Process::randomize(structToSend str) {
     random_shuffle(newVector.begin(), newVector.end(), myrandom);
     return newVector;
 }
+
+
