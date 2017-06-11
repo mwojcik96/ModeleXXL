@@ -45,6 +45,8 @@ struct structToSend {
     vector<int> listOfProcessesWantingPlaceInOurHall;
     int hotelAgreed;
     int hallAgreed;
+    int hotelRequestClock;
+    int hallRequestClock;
 };
 
 class Process {
