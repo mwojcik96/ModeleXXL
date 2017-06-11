@@ -22,6 +22,8 @@
 #define ID_OF_COMPETITION_WE_TAKE_PART_IN_MUTEX 11
 #define LIST_OF_PROCESSES_WANTING_PLACE_IN_OUR_HOTEL_MUTEX 12
 #define LIST_OF_PROCESSES_THAT_AGREED_ON_HOTEL_MUTEX 13
+#define HOTEL_AGREED_MUTEX 14
+#define HALL_AGREED_MUTEX 15
 
 struct structToSend {
     long numberOfCities;
@@ -33,15 +35,18 @@ struct structToSend {
     int hall;
     int state;
     int hotelSlots;
-    vector<int> clock;
-    vector<int> competitionClock;
+    //vector<int> clock;
+    //vector<int> competitionClock;
+    int clock;
+    int competitionClock;
     vector<int> potentialUsers;
     vector<int> signedUsers;
     int cityOfCompetitionWeTakePartIn;
     int idOfCompetitionWeTakePartIn;
     vector<int> listOfProcessesWantingPlaceInOurHotel;
-    vector<int> listOfProcessesThatAgreedOnHotel;
-
+    //vector<int> listOfProcessesThatAgreedOnHotel;
+    int hotelAgreed;
+    int hallAgreed;
 };
 
 class Process {
