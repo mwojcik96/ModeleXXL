@@ -119,7 +119,7 @@ W algorytmie są następujące kroki:
 \item Otrzymujemy jedną wiadomość o końcu konkursu
 \end{enumerate}
 
-Złożoność czasowa wynosi więc 7, tyle ile jest kroków algorytmu (zakładamy, że broadcast jest wykonywany optymalnie, równolegle)
+Złożoność czasowa wynosi więc 8, tyle ile jest kroków algorytmu (zakładamy, że broadcast jest wykonywany optymalnie, równolegle)
 
 Złożoność komunikacyjna wynosi $4 * (N - 1) + 4$, wszelkie dodatkowe, asynchroniczne, przybywające w dowolnym momencie wiadomości nie liczą się do złożoności, ponieważ może ich być potencjalnie nieskończenie wiele, a nie stanowią części algorytmu od strony procesu, który obecnie rozpatrujemy.
 
@@ -143,6 +143,9 @@ Złożoność czasowa wynosi 9, tyle jest kroków w naszym algorytmie od strony 
 
 Złożoność komunikacyjna wynosi $4 * (N - 1) + 5 * X$
 
+\subsection{Założenia środowiska komunikacyjnego}
+
+W żadnym momencie działania programu nie potrzebujemy, by pojedynczy kanał był pojemniejszy niż 3 wiadomości, lecz najczęściej jest mniej wiadomości w kanale. Zakładamy, że 3 wiadomości mogą znaleźć się jednocześnie w kanale.
 
 %%%%%%%%%%%%%%%% literatura %%%%%%%%%%%%%%%%
 
