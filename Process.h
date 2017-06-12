@@ -44,6 +44,7 @@ struct structToSend {
     int hallAgreed;
     int hotelRequestClock;
     int hallRequestClock;
+    vector<int> lastHotelRequestFromProcessesList;
 };
 
 class Process {
@@ -61,6 +62,8 @@ private:
     void printInfo(string info);
     static void printInfoFromThread(string info, structToSend *str);
     void clearStructure(structToSend str);
+    string getState(int state);
+    static string getStateFromThread(structToSend *str);
 public:
     Process();
     void behaviour();
@@ -69,6 +72,7 @@ public:
     Process(long i, long i1, long i2);
 
     vector<int> randomize(structToSend send);
+
 
 
 };

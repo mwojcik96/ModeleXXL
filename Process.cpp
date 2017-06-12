@@ -43,27 +43,12 @@ pthread_mutex_t strMutex;
 
 int myrandom(int i) { return std::rand() % i; }
 
-Process::Process() {
-    MPI_Comm_rank(MPI_COMM_WORLD, &str.rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &str.size);
-    printf("rank: %d, size: %d\n", str.rank, str.size);
-    str.city = -1;
-    str.hall = -1;
-    str.state = PRESTATE;
-    str.cityOfCompetitionWeTakePartIn = -1;
-    str.idOfCompetitionWeTakePartIn = -1;
-    str.clock = 0;
-    str.competitionClock = 0;
-    srand((unsigned int) time(NULL) + str.rank * 20);
-}
-
 Process::Process(long i, long i1, long i2) {
     MPI_Comm_rank(MPI_COMM_WORLD, &str.rank);
     MPI_Comm_size(MPI_COMM_WORLD, &str.size);
-    printf("rank: %d, size: %d\n", str.rank, str.size);
+    //printf("rank: %d, size: %d\n", str.rank, str.size);
     str.city = -1;
     str.hall = -1;
-    str.state = PRESTATE;
     str.cityOfCompetitionWeTakePartIn = -1;
     str.idOfCompetitionWeTakePartIn = -1;
     str.clock = 0;
@@ -80,6 +65,12 @@ Process::Process(long i, long i1, long i2) {
     str.signedUsers.clear();
     str.listOfProcessesWantingPlaceInOurHotel.clear();
     str.listOfProcessesWantingPlaceInOurHall.clear();
+    str.lastHotelRequestFromProcessesList.assign((unsigned long) str.size, 0);
+    pthread_mutex_lock(&strMutex);
+    printInfo("Zmieniam stan na PRESTATE");
+    str.clock++;
+    str.state = PRESTATE;
+    pthread_mutex_unlock(&strMutex);
 }
 
 /*
@@ -123,13 +114,41 @@ void incrementAfterMPIRecv(structToSend ourStr, vector<int> receivedClock) {
     }
 }
 */
+string Process::getState(int state) {
+    if (state == PRESTATE) return "PRESTATE";
+    if (state == ASK_ORGANIZATION) return "ASK_ORGANIZATION";
+    if (state == DECIDED_TO_PARTICIPATE) return "DECIDED_TO_PARTICIPATE";
+    if (state == ASK_HOTEL) return "ASK_HOTEL";
+    if (state == WAITING_FOR_END) return "WAITING_FOR_END";
+    if (state == AFTER_COMPETITION_IN_HOTEL) return "AFTER_COMPETITION_IN_HOTEL";
+    if (state == DECIDED_TO_ORGANIZE) return "DECIDED_TO_ORGANIZE";
+    if (state == ASK_HALL) return "ASK_HALL";
+    if (state == ASK_INVITES) return "ASK_INVITES";
+    if (state == RECV_HOTEL_RESERVATIONS) return "RECV_HOTEL_RESERVATIONS";
+    return "NO_DATA";
+}
+
+string Process::getStateFromThread(structToSend *str) {
+    if (str->state == PRESTATE) return "PRESTATE";
+    if (str->state == ASK_ORGANIZATION) return "ASK_ORGANIZATION";
+    if (str->state == DECIDED_TO_PARTICIPATE) return "DECIDED_TO_PARTICIPATE";
+    if (str->state == ASK_HOTEL) return "ASK_HOTEL";
+    if (str->state == WAITING_FOR_END) return "WAITING_FOR_END";
+    if (str->state == AFTER_COMPETITION_IN_HOTEL) return "AFTER_COMPETITION_IN_HOTEL";
+    if (str->state == DECIDED_TO_ORGANIZE) return "DECIDED_TO_ORGANIZE";
+    if (str->state == ASK_HALL) return "ASK_HALL";
+    if (str->state == ASK_INVITES) return "ASK_INVITES";
+    if (str->state == RECV_HOTEL_RESERVATIONS) return "RECV_HOTEL_RESERVATIONS";
+    return "NO_DATA";
+}
+
 
 void Process::printInfo(string info) {
-    cout << str.clock << " PID: " << str.rank << ", INFO: " << info << endl;
+    cout << str.clock << ", PID: " << str.rank << ", STATE: " << Process::getState(str.state) << ", INFO: " << info << endl;
 }
 
 void Process::printInfoFromThread(string info, structToSend *str) {
-    cout << str->clock << " PID: " << str->rank << ", INFO: " << info << endl;
+    cout << str->clock << ", PID: " << str->rank << ", STATE: " << Process::getStateFromThread(str) << ", INFO: " << info << endl;
 }
 
 void Process::sendMessagesAskingIfCompetitionIsHeld() {
@@ -148,7 +167,7 @@ void Process::sendMessagesAskingHotel() {
     int buf[4] = {0, str.cityOfCompetitionWeTakePartIn, str.competitionClock, str.idOfCompetitionWeTakePartIn};
     str.clock++;
     buf[0] = str.clock;
-    str.hotelRequestClock = str.clock; //TODO: find place to set it as -1 after free
+    str.hotelRequestClock = str.clock;
     for (int i = 0; i < str.size; i++) {
         if (i != str.rank) {
             MPI_Send(buf, 4, MPI_INT, i, HOTEL_QUESTION, MPI_COMM_WORLD);
@@ -161,7 +180,7 @@ void Process::sendMessagesAskingHall() {
     int buf[3] = {0, (int) str.city, (int) str.hall};
     str.clock++;
     buf[0] = str.clock;
-    str.hallRequestClock = str.clock; //TODO: find place to set it as -1 after free
+    str.hallRequestClock = str.clock;
     for (int i = 0; i < str.size; i++) {
         if (i != str.rank) {
             MPI_Send(buf, 3, MPI_INT, i, HALL_QUESTION, MPI_COMM_WORLD);
@@ -171,11 +190,12 @@ void Process::sendMessagesAskingHall() {
 }
 
 void Process::behaviour() { // sendy
-
+    /*
     printf("Sending messages to check whether any competitions is held.\n");
     printf("FROM_STRUCT: size=%d, rank=%d, city=%ld\n", str.size, str.rank, str.city);
     printf("FROM_STRUCT: nrCity=%ld, nrHalls=%ld, nrHotels=%ld\n", str.numberOfCities, str.numberOfHalls,
            str.numberOfRoomsInHotel);
+    */
     // Create a thread, which will receive questions "Do you organize a competition?"
     pthread_t threadA;
     pthread_t threadB;
@@ -198,6 +218,8 @@ void Process::behaviour() { // sendy
         if (str.state == 2000000) break;
         //ask if someone organize competition
         pthread_mutex_lock(&strMutex);
+        printInfo("Zmieniam stan na ASK_ORGANIZATION");
+        str.clock++;
         str.state = ASK_ORGANIZATION;
         Process::sendMessagesAskingIfCompetitionIsHeld();
         pthread_mutex_unlock(&strMutex);
@@ -224,6 +246,8 @@ void Process::behaviour() { // sendy
                       ") o zakończeniu zapisów na konkurs");
 
             str.competitionClock = recv3Tab[1];
+            printInfo("Zmieniam stan na ASK_HOTEL");
+            str.clock++;
             str.state = ASK_HOTEL;
             Process::sendMessagesAskingHotel();
             pthread_mutex_unlock(&strMutex);
@@ -234,11 +258,15 @@ void Process::behaviour() { // sendy
 
                 pthread_mutex_lock(&strMutex);
                 str.clock = max(str.clock, recv2Tab[0]) + 1;
-                printInfo("Odebrałem zgodę na zajęcie hotelu od " + to_string(status.MPI_SOURCE));
-                str.hotelAgreed++;
+                printInfo("Odebrałem zgodę na zajęcie hotelu od procesu " + to_string(status.MPI_SOURCE) +
+                          " - jest to odpowiedź na mój request z " + to_string(recv2Tab[1]));
+                if (str.hotelRequestClock == recv2Tab[1])
+                    str.hotelAgreed++; //increment only if you recived agree from now - expected to recv also msg from past
 
                 //check if you have a lot of agrees - then you have hotel, so left loop
                 if (str.hotelAgreed >= str.size - str.numberOfRoomsInHotel) {
+                    printInfo("Zmieniam stan na WAITING_FOR_END");
+                    str.clock++;
                     str.state = WAITING_FOR_END;
                     printInfo("Mam wystarczająco dużo zgód by zająć hotel w mieście " +
                               str.cityOfCompetitionWeTakePartIn);
@@ -263,14 +291,15 @@ void Process::behaviour() { // sendy
             str.clock = max(str.clock, recv2Tab[0]) + 1;
             printInfo("Odebrałem informację od organizatora(" + to_string(status.MPI_SOURCE) +
                       ") o zakończeniu konkursu");
+            printInfo("Zmieniam stan na AFTER_COMPETITION_IN_HOTEL");
+            str.clock++;
             str.state = AFTER_COMPETITION_IN_HOTEL;
             pthread_mutex_unlock(&strMutex);
 
             //sit in hotel for some time
-            sleep(3); //TODO: randomize
+            usleep((__useconds_t) (100000 * ((rand() % 50) + 1))); //rand wait from 0,1 to 5 sek
 
             pthread_mutex_lock(&strMutex);
-            str.state = PRESTATE;
             str.clock++;
             printInfo("Zwolniłem hotel w mieście " + to_string(str.cityOfCompetitionWeTakePartIn));
             //here left hotel and send agree to process which are on waiting list
@@ -278,6 +307,8 @@ void Process::behaviour() { // sendy
             str.clock++;
             tabToBeSent[0] = str.clock;
             while (!str.listOfProcessesWantingPlaceInOurHotel.empty()) {
+                // set value to send as last request, to make sure this process that he recv right confirm
+                tabToBeSent[1] = str.lastHotelRequestFromProcessesList[str.listOfProcessesWantingPlaceInOurHotel.back()];
                 MPI_Send(tabToBeSent, 2, MPI_INT, str.listOfProcessesWantingPlaceInOurHotel.back(), HOTEL_ANSWER,
                          MPI_COMM_WORLD);
                 str.listOfProcessesWantingPlaceInOurHotel.pop_back();
@@ -287,6 +318,8 @@ void Process::behaviour() { // sendy
             //clear data which are terminated(all needed?)
             str.city = -1;
             str.hall = -1;
+            printInfo("Zmieniam stan na PRESTATE");
+            str.clock++;
             str.state = PRESTATE;
             str.competitionClock = -1;
             str.potentialUsers.clear();
@@ -313,6 +346,8 @@ void Process::behaviour() { // sendy
             //ask if you can take it and change state to wait for reply
 
             Process::sendMessagesAskingHall();
+            printInfo("Zmieniam stan na ASK_HALL");
+            str.clock++;
             str.state = ASK_HALL;
             pthread_mutex_unlock(&strMutex);
 
@@ -328,8 +363,9 @@ void Process::behaviour() { // sendy
 
                 //check if you have a lot of agrees - then you have hall, so left loop
                 if (str.hallAgreed >= str.size - 1) {
-                    str.state = ASK_INVITES;
+                    printInfo("Zmieniam stan na ASK_INVITES");
                     str.clock++;
+                    str.state = ASK_INVITES;
                     tabToBeSent[0] = str.clock;
                     //send invites to other processes (== number of rooms) and add them on potential users list
                     processesToBeInvited = randomize(str);
@@ -371,8 +407,9 @@ void Process::behaviour() { // sendy
 
                 //check if potentialUsers is empty -> then close sign in and send it to participants
                 if (str.potentialUsers.empty()) {
-                    printInfo("Zmieniam stan na RECV_HOTEL_RESERVATIONS");
                     printInfo("Mam " + to_string(str.signedUsers.size()) + " uczestników");
+                    printInfo("Zmieniam stan na RECV_HOTEL_RESERVATIONS");
+                    str.clock++;
                     str.state = RECV_HOTEL_RESERVATIONS;
                     str.competitionClock = str.clock;
                     str.clock++;
@@ -396,7 +433,6 @@ void Process::behaviour() { // sendy
             pthread_mutex_lock(&strMutex);
             if (str.signedUsers.size() == 0) {
                 printInfo("Nie mam uczestników, więc nie czekam na zgody, kończę od razu konkurs");
-                str.state = PRESTATE;
                 str.competitionClock = -1; // you are not an organizer and you don't have competition priority
                 str.clock++;
                 tabToBeSent[0] = str.clock;
@@ -411,6 +447,8 @@ void Process::behaviour() { // sendy
                 //clear data which are terminated(all needed?)
                 str.city = -1;
                 str.hall = -1;
+                printInfo("Zmieniam stan na PRESTATE");
+                str.clock++;
                 str.state = PRESTATE;
                 str.competitionClock = -1;
                 str.potentialUsers.clear();
@@ -442,7 +480,6 @@ void Process::behaviour() { // sendy
                     //check if you have a lot of booking -> then end competition and left hall in same moment
                     if (recvBooking >= str.signedUsers.size()) {
                         //change state to PRESTATE and prepare to begin algorithm
-                        str.state = PRESTATE;
                         str.competitionClock = -1; // you are not an organizer and you don't have competition priority
                         str.clock++;
                         tabToBeSent[0] = str.clock;
@@ -466,6 +503,8 @@ void Process::behaviour() { // sendy
                         //clear data which are terminated(all needed?)
                         str.city = -1;
                         str.hall = -1;
+                        printInfo("Zmieniam stan na PRESTATE");
+                        str.clock++;
                         str.state = PRESTATE;
                         str.competitionClock = -1;
                         str.potentialUsers.clear();
@@ -507,9 +546,8 @@ void *Process::doYouOrganizeResponder(void *ptr) {
 
         pthread_mutex_lock(&strMutex);
         sharedData->clock = max(sharedData->clock, decision[0]) + 1;
-        cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: "
-             << "Odebrałem pytanie o organizację konkursu od procesu "
-             << status.MPI_SOURCE << endl;
+        printInfoFromThread("Odebrałem pytanie o organizację konkursu od procesu "
+                            + to_string(status.MPI_SOURCE), sharedData);
         // If we have a free slot then answer with city ID
         if (sharedData->state == ASK_INVITES && freeSlotInVectors(sharedData)) {
             decision[1] = (int) sharedData->city;
@@ -524,24 +562,24 @@ void *Process::doYouOrganizeResponder(void *ptr) {
         //send msg
         MPI_Send(decision, 2, MPI_INT, status.MPI_SOURCE, COMPETITION_ANSWER, MPI_COMM_WORLD);
         if (decision[1] == -1)
-            cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                 << status.MPI_SOURCE << " informację, że nie organizuję konkursu" << endl;
+            printInfoFromThread("Wysłałem procesowi " + to_string(status.MPI_SOURCE) +
+                                " informację, że nie organizuję konkursu", sharedData);
         else
-            cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                 << status.MPI_SOURCE << " informację, że organizuję konkurs w mieście " << decision[1] << endl;
+            printInfoFromThread("Wysłałem procesowi " + to_string(status.MPI_SOURCE) +
+                                " informację, że organizuję konkurs w mieście " + to_string(decision[1]), sharedData);
         pthread_mutex_unlock(&strMutex);
     }
     return nullptr;
 }
 
 bool Process::freeSlotInVectors(structToSend *str) {
-    return (str->potentialUsers.size() + str->signedUsers.size() >= str->numberOfRoomsInHotel);
+    return (str->potentialUsers.size() + str->signedUsers.size() < str->numberOfRoomsInHotel);
 }
 
 
 int generateRole() {
     int randomNumber = rand() % 100 + 1;
-    printf("%d\n", randomNumber);
+    //printf("%d\n", randomNumber);
     if (randomNumber < 20) {
         return DECIDED_TO_ORGANIZE;
     }
@@ -563,21 +601,21 @@ void *Process::someoneOrganisesResponder(void *ptr) {
 
         pthread_mutex_lock(&strMutex);
         sharedData->clock = max(sharedData->clock, tabToBeSent[0]) + 1;
-        cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: "
-             << "Odebrałem zaproszenie na konkurs od procesu "
-             << status.MPI_SOURCE << endl;
+        printInfoFromThread("Odebrałem zaproszenie na konkurs od procesu " + to_string(status.MPI_SOURCE), sharedData);
         if (sharedData->state == ASK_ORGANIZATION) {
             if (tabToBeSent[1] != -1) {
                 int newState = generateRole();
                 if (newState == DECIDED_TO_ORGANIZE) {
+                    printInfoFromThread("Zdecydowałem, że będę organizatorem konkursu", sharedData);
                     sharedData->clock++;
                     tabToBeSent[0] = sharedData->clock;
                     tabToBeSent[1] = -1;
                     MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
-                    cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                         << status.MPI_SOURCE << " informację, nie wezmę udziału w konkursie" << endl;
+                    printInfoFromThread("Wysłałem procesowi " + to_string(status.MPI_SOURCE) +
+                                        " informację, nie wezmę udziału w konkursie", sharedData);
+                    printInfoFromThread("Zmieniam stan na DECIDED_TO_ORGANIZE", sharedData);
                 } else {
-                    printInfoFromThread("Decided to become participant", sharedData);
+                    printInfoFromThread("Zdecydowałem, że będę uczestnikiem konkursu", sharedData);
                     //we are participant, so set variables and then send confirm
                     sharedData->idOfCompetitionWeTakePartIn = status.MPI_SOURCE;
                     sharedData->cityOfCompetitionWeTakePartIn = tabToBeSent[1];
@@ -586,19 +624,22 @@ void *Process::someoneOrganisesResponder(void *ptr) {
                     tabToBeSent[0] = sharedData->clock;
                     tabToBeSent[1] = 1;
                     MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
-                    cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                         << status.MPI_SOURCE << " informację, wezmę udział w konkursie" << endl;
+                    printInfoFromThread("Wysłałem procesowi " + to_string(status.MPI_SOURCE) +
+                                        " informację, wezmę udział w konkursie", sharedData);
+                    printInfoFromThread("Zmieniam stan na DECIDED_TO_PARTICIPATE", sharedData);
                 }
                 //We chosen state (org or part), so counter=0 and set state in struct
                 howManyRespondedThatDoNotOrganise = 0;
+                sharedData->clock++;
                 sharedData->state = newState;
             } else {
                 howManyRespondedThatDoNotOrganise++;
             }
             //check if you have a lot of "NO" and you must be organizer - also you have role so counter = 0
             if (howManyRespondedThatDoNotOrganise == sharedData->size - 1) {
-                printInfoFromThread("Muszę być organizatorem, bo nie ma żadnych konkursów. Ustawiłem stan na DECIDED_TO_ORGANIZE",
-                          sharedData);
+                printInfoFromThread("Brak konkursów; Muszę zostać organizatorem", sharedData);
+                printInfoFromThread("Zmieniam stan na DECIDED_TO_ORGANIZE", sharedData);
+                sharedData->clock++;
                 sharedData->state = DECIDED_TO_ORGANIZE;
                 //printf("STAN: %d\n", sharedData->state);
                 howManyRespondedThatDoNotOrganise = 0;
@@ -609,8 +650,9 @@ void *Process::someoneOrganisesResponder(void *ptr) {
             tabToBeSent[0] = sharedData->clock;
             tabToBeSent[1] = -1;
             MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
-            cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                 << status.MPI_SOURCE << " informację, nie wezmę udziału w konkursie" << endl;
+            printInfoFromThread(
+                    "Wysłałem procesowi " + to_string(status.MPI_SOURCE) + " informację, nie wezmę udziału w konkursie",
+                    sharedData);
         }
         pthread_mutex_unlock(&strMutex);
     }
@@ -633,9 +675,8 @@ void *Process::canIHavePlaceInHotelResponder(void *ptr) {
         //recv[0] = clock, recv[1] = city, recv[2] = competitionClock, recv[3] = competitionId
         pthread_mutex_lock(&strMutex);
         sharedData->clock = max(sharedData->clock, recvTab[0]) + 1;
-        cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: "
-             << "Odebrałem pytanie o hotel w mieście " + to_string(recvTab[1]) + " od procesu"
-             << status.MPI_SOURCE << endl;
+        printInfoFromThread("Odebrałem pytanie o hotel w mieście " + to_string(recvTab[1]) + " od procesu "
+                            + to_string(status.MPI_SOURCE), sharedData);
 
         // If we are in state that we will ask for the hotel or we are in hotel now
         if (sharedData->state == ASK_HOTEL || sharedData->state == WAITING_FOR_END ||
@@ -645,10 +686,10 @@ void *Process::canIHavePlaceInHotelResponder(void *ptr) {
             if (recvTab[1] != sharedData->cityOfCompetitionWeTakePartIn) {
                 sharedData->clock++;
                 tabToBeSent[0] = sharedData->clock;
-                tabToBeSent[1] = 1;
+                tabToBeSent[1] = recvTab[0]; //respond with time of request to make sure this process, that this response came for his newest request
                 MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
-                cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                     << status.MPI_SOURCE << " informację, że może wziąć hotel w mieście " << recvTab[1] << endl;
+                printInfoFromThread("Wysłałem procesowi " + to_string(status.MPI_SOURCE) +
+                                    " informację, że może wziąć hotel w mieście " + to_string(recvTab[1]), sharedData);
             }
                 //  but when it's in our city and we will just add them to list of processes, which we will reply
                 // after we give back place in hotel (if his request have less priority than our)
@@ -671,27 +712,30 @@ void *Process::canIHavePlaceInHotelResponder(void *ptr) {
                 if (!priority) {
                     sharedData->clock++;
                     tabToBeSent[0] = sharedData->clock;
-                    tabToBeSent[1] = 1;
+                    tabToBeSent[1] = recvTab[0]; //respond with time of request to make sure this process, that this response came for his newest request
                     MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
-                    cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                         << status.MPI_SOURCE << " informację, że może wziąć hotel w mieście " << recvTab[1] << endl;
+                    printInfoFromThread("Wysłałem procesowi " + to_string(status.MPI_SOURCE) +
+                                        " informację, że może wziąć hotel w mieście " + to_string(recvTab[1]),
+                                        sharedData);
                 }
                     //if he have less priority, then we push him on list of waiting
                 else {
                     sharedData->clock++;
+                    sharedData->lastHotelRequestFromProcessesList[status.MPI_SOURCE] = recvTab[0]; //set val to remember which caption fill this field in feature
                     sharedData->listOfProcessesWantingPlaceInOurHotel.push_back(status.MPI_SOURCE);
-                    cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Odłożyłem proces "
-                         << status.MPI_SOURCE << " na kolejkę oczekujących na hotel w mieście " << recvTab[1] << endl;
+                    printInfoFromThread("Odłożyłem proces " + to_string(status.MPI_SOURCE) +
+                                        " na kolejkę oczekujących na hotel w mieście " + to_string(recvTab[1]),
+                                        sharedData);
                 }
             }
             // if we are in any other state, we agree to take a place in hotel
         } else {
             sharedData->clock++;
             tabToBeSent[0] = sharedData->clock;
-            tabToBeSent[1] = 1;
+            tabToBeSent[1] = recvTab[0]; //respond with time of request to make sure this process, that this response came for his newest request
             MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, HOTEL_ANSWER, MPI_COMM_WORLD);
-            cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                 << status.MPI_SOURCE << " informację, że może wziąć hotel w mieście " << recvTab[1] << endl;
+            printInfoFromThread("Wysłałem procesowi " + to_string(status.MPI_SOURCE) +
+                                " informację, że może wziąć hotel w mieście " + to_string(recvTab[1]), sharedData);
         }
         pthread_mutex_unlock(&strMutex);
     }
@@ -714,9 +758,9 @@ void *Process::canITakeTheHallResponder(void *ptr) {
 
         pthread_mutex_lock(&strMutex);
         sharedData->clock = max(sharedData->clock, recvTab[0]) + 1;
-        cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: "
-             << "Odebrałem pytanie o salę " + to_string(recvTab[2]) + " w mieście " + to_string(recvTab[1]) +
-                " od procesu " << status.MPI_SOURCE << endl;
+        printInfoFromThread(
+                "Odebrałem pytanie o salę " + to_string(recvTab[2]) + " w mieście " + to_string(recvTab[1]) +
+                " od procesu " + to_string(status.MPI_SOURCE), sharedData);
 
         // If we are in state that we will ask for the hotel or we are in hotel now
         if (sharedData->state == ASK_HALL || sharedData->state == ASK_INVITES ||
@@ -724,9 +768,9 @@ void *Process::canITakeTheHallResponder(void *ptr) {
             if (recvTab[1] == sharedData->city && recvTab[2] == sharedData->hall) { // if he wants our hall
 
                 //check priority : a) less_clock_of_request b)less_rank
-                cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "SPRAWDZAM PRIORITY:" << endl
+                /*cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "SPRAWDZAM PRIORITY:" << endl
                      << "RECV_CLOCK: " << recvTab[0] << endl << "MY_REQ_CLOCK: " << sharedData->hallRequestClock << endl
-                     << "RECV_RANK: " << status.MPI_SOURCE << endl << "MY_RANK: " << sharedData->rank << endl;
+                     << "RECV_RANK: " << status.MPI_SOURCE << endl << "MY_RANK: " << sharedData->rank << endl;*/
                 if (sharedData->hallRequestClock == -1)
                     priority = false; //don't want hall (probably impossible, but ..)
                 else if (recvTab[0] < sharedData->hallRequestClock) priority = false;
@@ -740,33 +784,33 @@ void *Process::canITakeTheHallResponder(void *ptr) {
                     tabToBeSent[0] = sharedData->clock;
                     tabToBeSent[1] = 1;
                     MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, HALL_ANSWER, MPI_COMM_WORLD);
-                    cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                         << status.MPI_SOURCE << " informację, że może wziąć salę " << recvTab[2] << " w mieście "
-                         << recvTab[1] << endl;
+                    printInfoFromThread(
+                            "Wysłałem procesowi " + to_string(status.MPI_SOURCE) + " informację, że może wziąć salę " +
+                            to_string(recvTab[2]) + " w mieście " + to_string(recvTab[1]), sharedData);
                 } else { //if our priority is higher
                     sharedData->clock++;
                     sharedData->listOfProcessesWantingPlaceInOurHall.push_back(status.MPI_SOURCE);
-                    cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Odłożyłem proces "
-                         << status.MPI_SOURCE << " na kolejkę oczekujących na salę " << recvTab[2] << " w mieście "
-                         << recvTab[1] << endl;
+                    printInfoFromThread(
+                            "Odłożyłem proces " + to_string(status.MPI_SOURCE) + " na kolejkę oczekujących na salę " +
+                            to_string(recvTab[2]) + " w mieście " + to_string(recvTab[1]), sharedData);
                 }
             } else { // if not our hall then agree
                 sharedData->clock++;
                 tabToBeSent[0] = sharedData->clock;
                 tabToBeSent[1] = 1;
                 MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, HALL_ANSWER, MPI_COMM_WORLD);
-                cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                     << status.MPI_SOURCE << " informację, że może wziąć salę " << recvTab[2] << " w mieście "
-                     << recvTab[1] << endl;
+                printInfoFromThread(
+                        "Wysłałem procesowi " + to_string(status.MPI_SOURCE) + " informację, że może wziąć salę " +
+                        to_string(recvTab[2]) + " w mieście " + to_string(recvTab[1]), sharedData);
             }
         } else { // in any other state just send consent
             sharedData->clock++;
             tabToBeSent[0] = sharedData->clock;
             tabToBeSent[1] = 1;
             MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, HALL_ANSWER, MPI_COMM_WORLD);
-            cout << sharedData->clock << " PID: " << sharedData->rank << ", INFO: " << "Wysłałem procesowi "
-                 << status.MPI_SOURCE << " informację, że może wziąć salę " << recvTab[2] << " w mieście " << recvTab[1]
-                 << endl;
+            printInfoFromThread(
+                    "Wysłałem procesowi " + to_string(status.MPI_SOURCE) + " informację, że może wziąć salę " +
+                    to_string(recvTab[2]) + " w mieście " + to_string(recvTab[1]), sharedData);
         }
         pthread_mutex_unlock(&strMutex);
     }

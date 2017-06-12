@@ -12,6 +12,7 @@
     Przesyłana jest liczba w piercieniu.
 */
 
+/*
 void *startFunc(void *ptr)
 {
     MPI_Status status;
@@ -43,9 +44,9 @@ void *startFunc(void *ptr)
             printf("[%d] Pierwszy koniec dla %d\n", rank, data);
         } else if (rank==size-1) {
             printf("%d wysyla %d do 0\n", rank, data);
-            /* MPI_Ssend teoretycznie powinien się blokować aż do matching receive
-                (tak twierdzi kilka wyguglanych stron)
-            */
+                //MPI_Ssend teoretycznie powinien się blokować aż do matching receive
+                //(tak twierdzi kilka wyguglanych stron)
+
 
             MPI_Ssend( &data, 1, MPI_INT, 0, 1, MPI_COMM_WORLD);
             printf("%d wyslanie %d do 0 się powiodło \n", rank, data);
@@ -56,14 +57,14 @@ void *startFunc(void *ptr)
     }
     return nullptr;
 }
-
+*/
 int main(int argc,char **argv)
 {
 //    system("pkill -f PRy");
     int provided=0;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-    printf("THREAD SUPPORT: %d\n", provided);
-    printf("%s, %s\n", argv[1], argv[2]);
+    //printf("THREAD SUPPORT: %d\n", provided);
+    //printf("%s, %s\n", argv[1], argv[2]);
     if (provided!=MPI_THREAD_MULTIPLE) {
         fprintf(stderr, "Brak wystarczajacego wsparcia dla watkow - wychodze!\n");
         MPI_Finalize();
