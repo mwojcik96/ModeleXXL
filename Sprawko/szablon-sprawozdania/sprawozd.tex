@@ -46,7 +46,7 @@ Modele XXL
 Proces-agent reprezentuje jednego modela. Co pewien czas procesy chcą zorganizować konkurs. Nie wszystkie procesy mogą chcieć uczestniczyć, niektóre mogą właśnie uczestniczyć w innym konkursie. Do zorganizowania konkursu wymagane jest zarezerwowanie jednej z sal w mieście; istnieje niewiele M miast, w każdym z nich jest kilka S sal. W każdym mieście jest też jeden hotel o X miejscach. Każdy proces uczestniczący w konkursie w danym mieście musi następnie samodzielnie zarezerwować miejsce w odpowiednim hotelu. Po zakończeniu konkursu, sala zwalniana jest natychmiast, a hotel dopiero po pewnym czasie. 
 \end{quote}
 
-W następnych rozdziałach przedstawimy kolejno ideę algorytmu (Rozdział 2), następnie analizy złożoności komunikacyjnej i czasowej, wraz z wszelkimi założeniami dotyczącymi środowiska komunikacyjnego (Rozdział 3). Na końcu krótkie wnioski (Rozdział 4).
+W następnych rozdziałach przedstawimy kolejno ideę algorytmu (Rozdział 2), następnie analizy złożoności komunikacyjnej i czasowej, wraz z wszelkimi założeniami dotyczącymi środowiska komunikacyjnego (Rozdział 3). 
 
 \section{Opis zastosowanego algorytmu}
 
@@ -91,9 +91,58 @@ Teraz organizator będzie otrzymywać kilka typów wiadomości.
 Jeśli otrzymamy od wszystkich pewnych uczestników potwierdzenie, że załatwili sobie miejsca w hotelu to startujemy zawody, wysyłamy wszystkim uczestnikom potwierdzenie zakończenia konkursu i agent wraca do początku algorytmu.
 
 
+
 \section{Analiza złożoności i założeń}
 
-xD
+Pod uwagę bierzemy dwie złożoności:
+\begin{tightlist}
+\item Złożoność czasowa -- jest to liczba kroków algorytmu do czasu jego zakończenia, czas przesyłania jest jednostkowy, czas przetwarzania lokalnego zaniedbywalnie mały.
+\item Złożoność komunikacyjna -- ile wysyłamy pakietów / bajtów, my mierzymy złożoność pakietową.
+\end{tightlist}
+
+Zgodnie z założeniami złożoności czasowej, zakładamy, że kroki sa wykonywane synchronicznie.
+
+Zależnie od roli, złożoności te będą się od siebie różnić.
+
+\subsection{Złożoności czasowa i komunikacyjna dla uczestnika}
+
+W algorytmie są następujące kroki:
+
+\begin{enumerate}
+\item Wyślij do N-1 procesów pytanie o to, czy organizują jakiś konkurs
+\item Otrzymujemy N-1 odpowiedzi "Tak" lub "Nie" (minimalnie jedna "Tak", byśmy mogli wylosować rolę uczestnika -- to będzie konkurs, w którym weźmiemy udział)
+\item Wysyłamy jedną wiadomość do Organizatora, że weźmiemy udział w jego konkursie
+\item Otrzymujemy jedną wiadomość od Organizatora naszego konkursu, że zapisy się skończyły i mamy zacząć załatwiać miejsce w hotelu
+\item Wysyłamy N-1 wiadomości z pytaniem o miejsce w hotelu
+\item Gdy otrzymamy N-X zgód to zabieramy miejsce, pozostałe X-1 wiadomości też do nas dotrze na pewno
+\item Wysyłamy organizatorowi jedną wiadomość z potwierdzeniem zajęcia hotelu
+\item Otrzymujemy jedną wiadomość o końcu konkursu
+\end{enumerate}
+
+Złożoność czasowa wynosi więc 7, tyle ile jest kroków algorytmu (zakładamy, że broadcast jest wykonywany optymalnie, równolegle)
+
+Złożoność komunikacyjna wynosi $4 * (N - 1) + 4$, wszelkie dodatkowe, asynchroniczne, przybywające w dowolnym momencie wiadomości nie liczą się do złożoności, ponieważ może ich być potencjalnie nieskończenie wiele, a nie stanowią części algorytmu od strony procesu, który obecnie rozpatrujemy.
+
+\subsection{Złożoności czasowa i komunikacyjna dla organizatora}
+
+Od strony organizatora przebieg algorytmu wygląda następująco:
+
+\begin{enumerate}
+\item Wysyłamy N-1 pytań o to, czy proces organizuje konkurs
+\item Otrzymujemy N-1 odpowiedzi "Tak" lub "Nie"
+\item Wysyłamy N-1 pytań o to, czy możemy zająć salę $S_{1}$ w mieście $M_{1}$
+\item Otrzymujemy N-1 odpowiedzi (zgód), więc zajmujemy salę
+\item Wysyłamy X zaproszeń do wzięcia udziału w naszym konkursie
+\item Otrzymujemy X odpowiedzi "Biorę udział" lub "Nie biorę udziału"
+\item Wysyłamy X zgód na szukanie miejsca w hotelu
+\item Otrzymujemy X potwierdzeń, że uczestnik ma już zajęty hotel
+\item Wysyłamy X informacji o zakończeniu konkursu
+\end{enumerate}
+
+Złożoność czasowa wynosi 9, tyle jest kroków w naszym algorytmie od strony organizatora od początku do końca.
+
+Złożoność komunikacyjna wynosi $4 * (N - 1) + 5 * X$
+
 
 %%%%%%%%%%%%%%%% literatura %%%%%%%%%%%%%%%%
 
