@@ -144,11 +144,11 @@ string Process::getStateFromThread(structToSend *str) {
 
 
 void Process::printInfo(string info) {
-    cout << str.clock << ", PID: " << str.rank << ", STATE: " << Process::getState(str.state) << ", INFO: " << info << endl;
+    cout << str.clock << " , PID: " << str.rank << " , STATE: " << Process::getState(str.state) << " , INFO: " << info << endl;
 }
 
 void Process::printInfoFromThread(string info, structToSend *str) {
-    cout << str->clock << ", PID: " << str->rank << ", STATE: " << Process::getStateFromThread(str) << ", INFO: " << info << endl;
+    cout << str->clock << " , PID: " << str->rank << " , STATE: " << Process::getStateFromThread(str) << " , INFO: " << info << endl;
 }
 
 void Process::sendMessagesAskingIfCompetitionIsHeld() {
@@ -265,6 +265,7 @@ void Process::behaviour() { // sendy
 
                 //check if you have a lot of agrees - then you have hotel, so left loop
                 if (str.hotelAgreed >= str.size - str.numberOfRoomsInHotel) {
+                    printInfo("ZAJMUJĘ HOTEL W MIEŚCIE " + to_string(str.cityOfCompetitionWeTakePartIn));
                     printInfo("Zmieniam stan na WAITING_FOR_END");
                     str.clock++;
                     str.state = WAITING_FOR_END;
@@ -297,11 +298,11 @@ void Process::behaviour() { // sendy
             pthread_mutex_unlock(&strMutex);
 
             //sit in hotel for some time
-            usleep((__useconds_t) (100000 * ((rand() % 50) + 1))); //rand wait from 0,1 to 5 sek
+            usleep((__useconds_t) (100000 * ((rand() % 50) + 1))); //rand wait from 0,1 to 5 sek //TODO: maybe some clock_counter?
 
             pthread_mutex_lock(&strMutex);
             str.clock++;
-            printInfo("Zwolniłem hotel w mieście " + to_string(str.cityOfCompetitionWeTakePartIn));
+            printInfo("ZWALNIAM HOTEL W MIEŚCIE " + to_string(str.cityOfCompetitionWeTakePartIn));
             //here left hotel and send agree to process which are on waiting list
             tabToBeSent[1] = 1;
             str.clock++;
@@ -363,6 +364,7 @@ void Process::behaviour() { // sendy
 
                 //check if you have a lot of agrees - then you have hall, so left loop
                 if (str.hallAgreed >= str.size - 1) {
+                    printInfo("ZAJMUJĘ SALĘ "+ to_string(str.hall) + " W MIEŚCIE " + to_string(str.city));
                     printInfo("Zmieniam stan na ASK_INVITES");
                     str.clock++;
                     str.state = ASK_INVITES;
@@ -434,6 +436,7 @@ void Process::behaviour() { // sendy
             if (str.signedUsers.size() == 0) {
                 printInfo("Nie mam uczestników, więc nie czekam na zgody, kończę od razu konkurs");
                 str.competitionClock = -1; // you are not an organizer and you don't have competition priority
+                printInfo("ZWALNIAM SALĘ "+ to_string(str.hall) + " W MIEŚCIE " + to_string(str.city));
                 str.clock++;
                 tabToBeSent[0] = str.clock;
                 tabToBeSent[1] = 1;
@@ -490,6 +493,7 @@ void Process::behaviour() { // sendy
                             str.signedUsers.pop_back();
                         }
                         printInfo("Wysłałem informację o zakończeniu konkursu do uczestników");
+                        printInfo("ZWALNIAM SALĘ "+ to_string(str.hall) + " W MIEŚCIE " + to_string(str.city));
                         str.clock++;
                         tabToBeSent[0] = str.clock;
                         //send agree to process waiting for your hall
