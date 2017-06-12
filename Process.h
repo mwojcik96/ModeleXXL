@@ -32,9 +32,6 @@ struct structToSend {
     long city;
     long hall;
     int state;
-    int hotelSlots;
-    //vector<int> clock;
-    //vector<int> competitionClock;
     int clock;
     int competitionClock;
     vector<int> potentialUsers;
@@ -45,6 +42,9 @@ struct structToSend {
     vector<int> listOfProcessesWantingPlaceInOurHall;
     int hotelAgreed;
     int hallAgreed;
+    int hotelRequestClock;
+    int hallRequestClock;
+    vector<int> lastHotelRequestFromProcessesList;
 };
 
 class Process {
@@ -56,10 +56,14 @@ private:
     static void *canIHavePlaceInHotelResponder(void *ptr);
     static void *canITakeTheHallResponder(void *ptr);
     static bool freeSlotInVectors(structToSend* str);
-    void sendMessagesAskingIfCompetitionIsHeld(structToSend str);
-    void sendMessagesAskingHotel(structToSend str);
-    void sendMessagesAskingHall(structToSend str);
-
+    void sendMessagesAskingIfCompetitionIsHeld();
+    void sendMessagesAskingHotel();
+    void sendMessagesAskingHall();
+    void printInfo(string info);
+    static void printInfoFromThread(string info, structToSend *str);
+    void clearStructure(structToSend str);
+    string getState(int state);
+    static string getStateFromThread(structToSend *str);
 public:
     Process();
     void behaviour();
@@ -68,6 +72,9 @@ public:
     Process(long i, long i1, long i2);
 
     vector<int> randomize(structToSend send);
+
+
+
 };
 
 
