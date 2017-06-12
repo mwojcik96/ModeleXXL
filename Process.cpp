@@ -601,9 +601,9 @@ void *Process::someoneOrganisesResponder(void *ptr) {
 
         pthread_mutex_lock(&strMutex);
         sharedData->clock = max(sharedData->clock, tabToBeSent[0]) + 1;
-        printInfoFromThread("Odebrałem zaproszenie na konkurs od procesu " + to_string(status.MPI_SOURCE), sharedData);
         if (sharedData->state == ASK_ORGANIZATION) {
             if (tabToBeSent[1] != -1) {
+                printInfoFromThread("Odebrałem zaproszenie na konkurs od procesu " + to_string(status.MPI_SOURCE), sharedData);
                 int newState = generateRole();
                 if (newState == DECIDED_TO_ORGANIZE) {
                     printInfoFromThread("Zdecydowałem, że będę organizatorem konkursu", sharedData);
@@ -625,7 +625,7 @@ void *Process::someoneOrganisesResponder(void *ptr) {
                     tabToBeSent[1] = 1;
                     MPI_Send(tabToBeSent, 2, MPI_INT, status.MPI_SOURCE, COMPETITION_CONFIRM, MPI_COMM_WORLD);
                     printInfoFromThread("Wysłałem procesowi " + to_string(status.MPI_SOURCE) +
-                                        " informację, wezmę udział w konkursie", sharedData);
+                                        " informację, że wezmę udział w konkursie", sharedData);
                     printInfoFromThread("Zmieniam stan na DECIDED_TO_PARTICIPATE", sharedData);
                 }
                 //We chosen state (org or part), so counter=0 and set state in struct
@@ -646,6 +646,7 @@ void *Process::someoneOrganisesResponder(void *ptr) {
             }
         } else {
             //in other states just send you don't want to participate
+            printInfoFromThread("Odebrałem informację, że proces " + to_string(status.MPI_SOURCE) + " nie organizuje konkursu", sharedData);
             sharedData->clock++;
             tabToBeSent[0] = sharedData->clock;
             tabToBeSent[1] = -1;
