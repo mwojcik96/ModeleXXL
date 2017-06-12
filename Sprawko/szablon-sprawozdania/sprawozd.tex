@@ -1,0 +1,105 @@
+%@descr: wzór sprawozdania, raportu lub pracy - nadaje się do przeróbek
+%@author: Maciej Komosiński
+
+\documentclass{article} 
+\usepackage{polski} %moze wymagac dokonfigurowania latexa, ale jest lepszy niż standardowy babel'owy [polish] 
+\usepackage[utf8]{inputenc} 
+\usepackage[OT4]{fontenc} 
+\usepackage{graphicx,color} %include pdf's (and png's for raster graphics... avoid raster graphics!) 
+\usepackage{url} 
+\usepackage[pdftex,hyperfootnotes=false,pdfborder={0 0 0}]{hyperref} %za wszystkimi pakietami; pdfborder nie wszedzie tak samo zaimplementowane bo specyfikacja nieprecyzyjna; pod miktex'em po prostu nie widac wtedy ramek
+
+
+\input{_ustawienia.tex}
+
+%\title{Sprawozdanie z laboratorium:\\Metaheurystyki i Obliczenia Inspirowane Biologicznie}
+%\author{}
+%\date{}
+
+
+\begin{document}
+
+\input{_tytulowa}
+
+
+\section{Wstęp}
+
+
+Naszym zadaniem w ramach projektu z laboratorium z przedmiotu Przetwarzanie Rozproszone było:
+
+\begin{tightlist}
+\item opracować algorytm, rozwiązujący zadany problem,
+\item zaimplementować go np. z użyciem języka C++ i środowiska Open MPI,
+\item stworzyć sprawozdanie, pozwalające na samodzielne zaimplementowanie tego algorytmu.
+\end{tightlist}
+
+Temat, który został nam przydzielony to:
+\begin{quote}
+\begin{large}
+\begin{center}
+Modele XXL
+\end{center}
+\end{large}
+
+ Czas skończyć ze stereotypem, że mężczyzna, by był piękny, musiał być wysportowany, wysoki i szczupły. Mężczyźni nie są obiektami seksualnymi! Ruch feministyczny postanowił więc urządzić konkursy rozlazłych, tłustych, niskich kurdupli, by w ten sposób promować postawę, że o wartości mężczyzny decyduje jego wnętrze, a nie sześciopak na brzuchu.
+
+Proces-agent reprezentuje jednego modela. Co pewien czas procesy chcą zorganizować konkurs. Nie wszystkie procesy mogą chcieć uczestniczyć, niektóre mogą właśnie uczestniczyć w innym konkursie. Do zorganizowania konkursu wymagane jest zarezerwowanie jednej z sal w mieście; istnieje niewiele M miast, w każdym z nich jest kilka S sal. W każdym mieście jest też jeden hotel o X miejscach. Każdy proces uczestniczący w konkursie w danym mieście musi następnie samodzielnie zarezerwować miejsce w odpowiednim hotelu. Po zakończeniu konkursu, sala zwalniana jest natychmiast, a hotel dopiero po pewnym czasie. 
+\end{quote}
+
+W następnych rozdziałach przedstawimy kolejno ideę algorytmu (Rozdział 2), następnie analizy złożoności komunikacyjnej i czasowej, wraz z wszelkimi założeniami dotyczącymi środowiska komunikacyjnego (Rozdział 3). Na końcu krótkie wnioski (Rozdział 4).
+
+\section{Opis zastosowanego algorytmu}
+
+Nasze rozwiązanie opiera się zasadniczo na dwóch scenariuszach i je trzeba osobno nakreślić i oddzielić od siebie. Każdy proces może wylosować (czy też wybrać) jedną z dwóch roli. Może być albo uczestnikiem konkursu, albo jego organizatorem.
+
+Przed wybraniem jakiejkolwiek roli jednakże, należy poczynić pewne kroki, by ją ustalić. Po pierwsze, na samym początku każdego cyklu wysyłamy do wszystkich pozostałych procesów-agentów zapytanie o to, czy organizują już konkurs. Jeśli choć jedna spośród N-1 (gdzie N to liczba procesów-agentów) odpowiedzi będzie brzmiała "tak, w mieście $M_{1}$" to uruchamiamy losową funkcję GenerujRolę(), której celem jest z pewnym rozkładem prawdopodobieństwa (u nas 20\% szans na bycie organizatorem, 80\% szans na bycie uczestnikiem) wylosowanie jednej z dwóch dostępnych ról. 
+
+Jeśli zostaniemy uczestnikiem konkursu to wybieramy pierwszy przybyły do nas konkurs (w wiadomości otrzymaliśmy identyfikator procesu nadawcy) jako ten, w którym zechcemy wziąć udział. 
+
+Jeśli wylosujemy rolę Organizatora to przechodzimy do podrozdziału "Rola organizatora konkursu" i kontynuujemy algorytm.
+
+W przypadku gdy wszystkie N-1 odpowiedzi będą przeczące ("Nie, nie organizuję konkursu") to znaczy, że my musimy zorganizować, by nie doprowadzić do utworzenia samych uczestników konkursów przy braku jakiegokolwiek konkursu do wyboru.
+
+W międzyczasie inny wątek odpowiada przecząco na przybyłe pytania "Czy organizujesz konkurs?", jako iż jeszcze nie wybrał żadnej roli lub nie mamy możliwości przechowywania listy uczestników (w podrozdziale o roli organizatora będzie to wyjaśnione).
+
+\subsection{Rola uczestnika konkursu}
+
+Jeśli udało nam się wylosować rolę uczestnika to mamy już zapisane ID organizatora konkursu, w którym bierzemy udział i ID miasta, w którym ten konkurs się odbędzie. Pozostałym ewentualnym organizatorom odpowiadamy na bieżąco, że nie bierzemy udziału w ich konkursie. Teraz musimy poczekać na zakończenie zapisów do naszego konkursu -- organizator wyśle nam stosownie otagowaną wiadomość, która będzie nam mówiła, że zapisy się skończyły. 
+
+W tym momencie zaczynamy się ubiegać o sekcję krytyczną, którym jest hotel w mieście $M_{1}$, które otrzymaliśmy w wiadomości od organizatora konkursu. Jeśli otrzymamy N - X wiadomości z pozwoleniami to możemy zająć miejsce w hotelu. Jeśli przyjdzie do nas pytanie o nasz hotel to odsyłamy zgodę jedynie, gdy zegar nadawcy jest wcześniejszy niż nasz (ubiegał się wcześniej niż my, on ma priorytet). Jeśli ubiegał się później niż my to zapisujemy jego identyfikator na listę identyfikatorów do obsłużenia po zwolnieniu sekcji krytycznej. W przypadku zapytania o hotel w innym mieście, zawsze odsyłamy zgodę.
+
+Gdy tylko otrzymamy miejsce w hotelu w mieście $M_{1}$ to wysyłamy organizatorowi naszego konkursu informację o tym, że już na pewno bierzemy udział i jesteśmy gotowi na rozpoczęcie konkursu.
+
+Od tego czasu oczekujemy na kolejną wiadomość od organizatora ("Zakończyłem konkurs") i wtedy po pewnym czasie zwalniamy hotel i wszystkim osobom, które pytały o nasz hotel w mieście $M_{1}$ w czasie, gdy my go zajmowaliśmy.
+
+Po tym proces-agent wraca na początek algorytmu -- na nowo nie ma roli, będzie próbował losować rolę i kontynuować pracę.
+
+\subsection{Rola organizatora konkursu}
+
+Jeśli rola procesu-agenta zostaje ustalona na organizatora konkursu to proces ten musi wylosować sobie numer miasta i numer sali w nim. Wtedy zaczynamy starać się o wybraną salę w wybranym mieście. Wysyłamy do wszystkich pytanie o to, czy możemy zająć tę salę i czekamy o N-1 zgód. Jeśli dostaniemy pytanie od kogoś innego to zależnie od wartości jego zegara, przechowujemy go w kolejce osób, którym odpowiemy po zwolnieniu sali (jeśli ma zegar późniejszy) lub odsyłamy zgodę (jeśli ma zegar wcześniejszy). Każdy proces odsyła zgody automatycznie, jeśli nie dotyczy to jego sali (czyli inna sala w naszym mieście, sala w innym mieście). 
+
+W tym momencie wyślij do wszystkich wiadomość o tym, że organizujesz konkurs i dodaj na listę potencjalnych uczestników wszystkie procesy poza sobą (N-1). 
+
+Teraz organizator będzie otrzymywać kilka typów wiadomości. 
+
+\begin{tightlist}
+\item Jeśli otrzymamy pytanie "Czy organizujesz konkurs?" to jeśli mamy miejsce możliwe to odpowiadamy, że tak i ewentualnie dopisujemy ten proces na listę potencjalnych uczestników (możliwe, że został usunięty bo wcześniej odpowiedział na nasze zaproszenie przecząco, ale teraz zmienił zdanie). 
+\item Jeśli otrzymamy odpowiedź "Nie biorę udziału" to wykreślamy ten proces z listy potencjalnych uczestników.
+\item Jeśli otrzymamy odpowiedź "Biorę udział" to wykreślamy go z listy potencjalnych uczestników, a dodajemy na listę pewnych uczestników. Jeśli lista potencjalnych uczestników jest pusta (na nikogo nie czekamy już, wszyscy odmówili potwierdzili, że chcą brać udział) to zamykamy zapisy. Wtedy rozsyłamy wszystkim zgodę na uzyskiwanie hotelu.
+\end{tightlist}
+
+Jeśli otrzymamy od wszystkich pewnych uczestników potwierdzenie, że załatwili sobie miejsca w hotelu to startujemy zawody, wysyłamy wszystkim uczestnikom potwierdzenie zakończenia konkursu i agent wraca do początku algorytmu.
+
+
+\section{Analiza złożoności i założeń}
+
+xD
+
+%%%%%%%%%%%%%%%% literatura %%%%%%%%%%%%%%%%
+
+\bibliography{sprawozd}
+\bibliographystyle{plain}
+
+
+\end{document}
+
