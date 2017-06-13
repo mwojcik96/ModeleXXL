@@ -26,9 +26,9 @@ if int(sys.argv[5]): #1 - szczegolowy raporcik
         hotelVec.append([])
     print("0: ",hotelVec, hallVec)
     for w in sorted_list:
-        if w[9] == "ZAJMUJe" or w[9] == "ZWALNIAM":
-            if w[10] == "SALe":
-                if w[9] == "ZAJMUJe":
+        if w[9] == "ZAJMUJE" or w[9] == "ZWALNIAM":
+            if w[10] == "SALE":
+                if w[9] == "ZAJMUJE":
                     if hallVec[int(w[14])][int(w[11])] == -1:
                         hallVec[int(w[14])][int(w[11])] = int(w[3])
                     else:
@@ -36,7 +36,7 @@ if int(sys.argv[5]): #1 - szczegolowy raporcik
                 else:
                     hallVec[int(w[14])][int(w[11])] = -1
             else:
-                if w[9] == "ZAJMUJe":
+                if w[9] == "ZAJMUJE":
                     hotelVec[int(w[13])].append(int(w[3]))
                 else:
                     hotelVec[int(w[13])].remove(int(w[3]))
@@ -53,14 +53,14 @@ else:
         hotelVec.append(0)
     print("0: ",hotelVec, hallVec)
     for w in sorted_list:
-        if w[9] == "ZAJMUJe" or w[9] == "ZWALNIAM":
-            if w[10] == "SALe":
-                if w[9] == "ZAJMUJe":
+        if w[9] == "ZAJMUJE" or w[9] == "ZWALNIAM":
+            if w[10] == "SALE":
+                if w[9] == "ZAJMUJE":
                     hallVec[int(w[14])][int(w[11])] += 1
                 else:
                     hallVec[int(w[14])][int(w[11])] -= 1
             else:
-                if w[9] == "ZAJMUJe":
+                if w[9] == "ZAJMUJE":
                     hotelVec[int(w[13])] += 1
                 else:
                     hotelVec[int(w[13])] -= 1

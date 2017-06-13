@@ -265,7 +265,7 @@ void Process::behaviour() { // sendy
 
                 //check if you have a lot of agrees - then you have hotel, so left loop
                 if (str.hotelAgreed >= str.size - str.numberOfRoomsInHotel) {
-                    printInfo("ZAJMUJe HOTEL W MIEsCIE " + to_string(str.cityOfCompetitionWeTakePartIn));
+                    printInfo("ZAJMUJE HOTEL W MIESCIE " + to_string(str.cityOfCompetitionWeTakePartIn));
                     printInfo("Zmieniam stan na WAITING_FOR_END");
                     str.clock++;
                     str.state = WAITING_FOR_END;
@@ -302,7 +302,7 @@ void Process::behaviour() { // sendy
 
             pthread_mutex_lock(&strMutex);
             str.clock++;
-            printInfo("ZWALNIAM HOTEL W MIEsCIE " + to_string(str.cityOfCompetitionWeTakePartIn));
+            printInfo("ZWALNIAM HOTEL W MIESCIE " + to_string(str.cityOfCompetitionWeTakePartIn));
             //here left hotel and send agree to process which are on waiting list
             tabToBeSent[1] = 1;
             str.clock++;
@@ -364,7 +364,7 @@ void Process::behaviour() { // sendy
 
                 //check if you have a lot of agrees - then you have hall, so left loop
                 if (str.hallAgreed >= str.size - 1) {
-                    printInfo("ZAJMUJe SALe "+ to_string(str.hall) + " W MIEsCIE " + to_string(str.city));
+                    printInfo("ZAJMUJE SALE "+ to_string(str.hall) + " W MIESCIE " + to_string(str.city));
                     printInfo("Zmieniam stan na ASK_INVITES");
                     str.clock++;
                     str.state = ASK_INVITES;
@@ -436,7 +436,7 @@ void Process::behaviour() { // sendy
             if (str.signedUsers.size() == 0) {
                 printInfo("Nie mam uczestnikow, wiec nie czekam na zgody, koncze od razu konkurs");
                 str.competitionClock = -1; // you are not an organizer and you don't have competition priority
-                printInfo("ZWALNIAM SALe "+ to_string(str.hall) + " W MIEsCIE " + to_string(str.city));
+                printInfo("ZWALNIAM SALE "+ to_string(str.hall) + " W MIESCIE " + to_string(str.city));
                 str.clock++;
                 tabToBeSent[0] = str.clock;
                 tabToBeSent[1] = 1;
@@ -493,7 +493,7 @@ void Process::behaviour() { // sendy
                             str.signedUsers.pop_back();
                         }
                         printInfo("Wyslalem informacje o zakonczeniu konkursu do uczestnikow");
-                        printInfo("ZWALNIAM SALe "+ to_string(str.hall) + " W MIEsCIE " + to_string(str.city));
+                        printInfo("ZWALNIAM SALE "+ to_string(str.hall) + " W MIESCIE " + to_string(str.city));
                         str.clock++;
                         tabToBeSent[0] = str.clock;
                         //send agree to process waiting for your hall
