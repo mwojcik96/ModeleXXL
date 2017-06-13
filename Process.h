@@ -23,6 +23,15 @@
 #define HOTEL_AGREED_MUTEX 14
 #define HALL_AGREED_MUTEX 15
 
+struct hotelRequestStruct {
+    //recv[0] = clock, recv[1] = city, recv[2] = competitionClock, recv[3] = competitionId
+    int processOfRequest;
+    int clockOfRequest;
+    int cityOfRequest;
+    int competitionClockOfRequest;
+    int competitionIdOfRequest;
+};
+
 struct structToSend {
     long numberOfCities;
     long numberOfHalls;
@@ -45,6 +54,7 @@ struct structToSend {
     int hotelRequestClock;
     int hallRequestClock;
     vector<int> lastHotelRequestFromProcessesList;
+    vector<hotelRequestStruct> vectorOfHotelRequestsToRespond;
 };
 
 class Process {
